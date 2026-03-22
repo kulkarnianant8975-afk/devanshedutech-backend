@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: backend-springboot
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://devanshedutech-23681.j77.aws-ap-south-1.cockroachlabs.cloud:26257/devanshedutech?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory}
+    username: ${DATABASE_USERNAME:anant}
+    password: ${DATABASE_PASSWORD:ZJ1YsGMI5PHdVjSZd0KipQ}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      validation-timeout: 5000
+      leak-detection-threshold: 20000
+      minimum-idle: 1
+      maximum-pool-size: 10
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  gemini:
+    api-key: ${GEMINI_API_KEY:AIzaSyCk3FAjBwlKXzpFKQKXZO31M3z86AEvaSw}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:placeholder-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:placeholder-secret}
+            scope:
+              - email
+              - profile
+
+server:
+  port: 8080
+  tomcat:
+    max-http-form-post-size: 50MB
+    max-swallow-size: 50MB
+  servlet:
+    session:
+      cookie:
+        secure: true
+        same-site: none
+        http-only: true
+
+# CORS Configuration
+app:
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,https://devanshedutech.vercel.app}
