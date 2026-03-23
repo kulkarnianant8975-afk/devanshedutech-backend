@@ -29,11 +29,22 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String name = oAuth2User.getAttribute("name");
         String picture = oAuth2User.getAttribute("picture");
         
-        String role = (email != null && email.equalsIgnoreCase("kulkarnianant8975@gmail.com")) ? "admin" : "user";
+        User existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        String role = "user";
+
+        // Hardcoded admins (always get admin role)
+        if (email != null && (
+                email.equalsIgnoreCase("kulkarnianant8975@gmail.com") ||
+                email.equalsIgnoreCase("dipaliatdevanshedutech@gmail.com")
+        )) {
+            role = "admin";
+        } else if (existingUser != null && "admin".equalsIgnoreCase(existingUser.getRole())) {
+            // Respect existing admin role from DB if already set via SQL
+            role = "admin";
+        }
         
-        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
-        if (user == null) {
-            user = User.builder()
+        if (existingUser == null) {
+            User user = User.builder()
                     .id(java.util.UUID.randomUUID().toString())
                     .email(email)
                     .displayName(name)
@@ -42,10 +53,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     .build();
             userRepository.save(user);
         } else {
-            user.setDisplayName(name);
-            user.setPhotoUrl(picture);
-            user.setRole(role);
-            userRepository.save(user);
+            existingUser.setDisplayName(name);
+            existingUser.setPhotoUrl(picture);
+            existingUser.setRole(role);
+            userRepository.save(existingUser);
         }
 
         return new DefaultOAuth2User(
