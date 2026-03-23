@@ -3,9 +3,9 @@ spring:
     name: backend-springboot
 
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://devanshedutech-23681.j77.aws-ap-south-1.cockroachlabs.cloud:26257/devanshedutech?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory}
-    username: ${DATABASE_USERNAME:anant}
-    password: ${DATABASE_PASSWORD:ZJ1YsGMI5PHdVjSZd0KipQ}
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 30000
@@ -17,7 +17,7 @@ spring:
       max-lifetime: 1800000
 
   gemini:
-    api-key: ${GEMINI_API_KEY:AIzaSyCk3FAjBwlKXzpFKQKXZO31M3z86AEvaSw}
+    api-key: ${GEMINI_API_KEY}
 
   jpa:
     open-in-view: false
