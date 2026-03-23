@@ -28,12 +28,19 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final CustomUserDetailsService customUserDetailsService;
+    private final com.devanshedutech.security.CustomOAuth2UserService customOAuth2UserService;
+    private final com.devanshedutech.security.OAuth2LoginSuccessHandler oauth2LoginSuccessHandler;
 
     @Value("${app.cors.allowed-origins}")
     private String[] allowedOrigins;
 
-    public SecurityConfig(CustomUserDetailsService customUserDetailsService) {
+    public SecurityConfig(
+            CustomUserDetailsService customUserDetailsService,
+            com.devanshedutech.security.CustomOAuth2UserService customOAuth2UserService,
+            com.devanshedutech.security.OAuth2LoginSuccessHandler oauth2LoginSuccessHandler) {
         this.customUserDetailsService = customUserDetailsService;
+        this.customOAuth2UserService = customOAuth2UserService;
+        this.oauth2LoginSuccessHandler = oauth2LoginSuccessHandler;
     }
 
     @Bean
@@ -57,6 +64,10 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/chat").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/messages").permitAll()
                 .anyRequest().authenticated()
+            )
+            .oauth2Login(oauth2 -> oauth2
+                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                .successHandler(oauth2LoginSuccessHandler)
             );
 
         return http.build();
