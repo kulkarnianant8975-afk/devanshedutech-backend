@@ -22,10 +22,14 @@ public class SettingsController {
     
     private final AppSettingRepository appSettingRepository;
     private final CourseRepository courseRepository;
+    private final com.devanshedutech.repository.BrochureChunkRepository brochureChunkRepository;
 
-    public SettingsController(AppSettingRepository repository, CourseRepository courseRepository) {
+    public SettingsController(AppSettingRepository repository, 
+                              CourseRepository courseRepository,
+                              com.devanshedutech.repository.BrochureChunkRepository brochureChunkRepository) {
         this.appSettingRepository = repository;
         this.courseRepository = courseRepository;
+        this.brochureChunkRepository = brochureChunkRepository;
     }
 
     @GetMapping("/public/brochure")
@@ -73,20 +77,20 @@ public class SettingsController {
         Optional<AppSetting> setting = appSettingRepository.findById(key);
         if (setting.isPresent()) {
             try {
-                String base64Content = setting.get().getSettingValue();
-                if (base64Content != null && base64Content.startsWith("data:application/pdf;base64,")) {
-                    base64Content = base64Content.substring("data:application/pdf;base64,".length());
-                }
+                // Fetch all chunks ordered by index
+                List<com.devanshedutech.model.BrochureChunk> chunks = brochureChunkRepository.findBySettingKeyOrderByChunkIndexAsc(key);
                 
-                byte[] pdfBytes;
-                try {
-                    pdfBytes = java.util.Base64.getDecoder().decode(base64Content);
-                } catch (IllegalArgumentException e) {
-                    // Not a valid base64 - likely an old filename from disk-based storage
-                    // Since Render is ephemeral, these old files are likely gone anyway.
+                if (chunks.isEmpty()) {
                     return ResponseEntity.notFound().build();
                 }
+
+                // Reassemble chunks
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                for (com.devanshedutech.model.BrochureChunk chunk : chunks) {
+                    baos.write(chunk.getData());
+                }
                 
+                byte[] pdfBytes = baos.toByteArray();
                 Resource resource = new org.springframework.core.io.ByteArrayResource(pdfBytes);
                 
                 return ResponseEntity.ok()
@@ -94,30 +98,63 @@ public class SettingsController {
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + downloadName + "\"")
                         .body(resource);
             } catch (Exception e) {
+                e.printStackTrace();
                 return ResponseEntity.internalServerError().build();
             }
         }
         return ResponseEntity.notFound().build();
     }
 
-    private ResponseEntity<?> saveFile(String key, MultipartFile file) {
+    @org.springframework.transaction.annotation.Transactional
+    protected void saveInChunks(String key, byte[] fileBytes) {
+        // Delete old chunks first
+        brochureChunkRepository.deleteBySettingKey(key);
+        
+        // Save new chunks (10MB each)
+        int chunkSize = 10 * 1024 * 1024;
+        int totalChunks = (int) Math.ceil((double) fileBytes.length / chunkSize);
+        
+        for (int i = 0; i < totalChunks; i++) {
+            int start = i * chunkSize;
+            int end = Math.min(fileBytes.length, (i + 1) * chunkSize);
+            byte[] chunkData = java.util.Arrays.copyOfRange(fileBytes, start, end);
+            
+            com.devanshedutech.model.BrochureChunk chunk = com.devanshedutech.model.BrochureChunk.builder()
+                    .settingKey(key)
+                    .chunkIndex(i)
+                    .data(chunkData)
+                    .build();
+            brochureChunkRepository.save(chunk);
+        }
+        
+        // Update AppSetting to mark as present
+        AppSetting setting = AppSetting.builder()
+                .settingKey(key)
+                .settingValue("CHUNKED".getBytes()) // Placeholder to satisfy BYTEA type
+                .build();
+        appSettingRepository.save(setting);
+    }
+
+    public ResponseEntity<?> saveFile(String key, MultipartFile file) {
         try {
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "File is empty"));
             }
             
+            // Limit to 60MB
+            if (file.getSize() > 60 * 1024 * 1024) {
+                return ResponseEntity.badRequest().body(Map.of("error", "File is too large. Maximum size is 60MB."));
+            }
+            
             byte[] fileBytes = file.getBytes();
-            String base64Content = "data:application/pdf;base64," + java.util.Base64.getEncoder().encodeToString(fileBytes);
             
-            AppSetting setting = AppSetting.builder()
-                    .settingKey(key)
-                    .settingValue(base64Content)
-                    .build();
-            appSettingRepository.save(setting);
+            // Use chunked save
+            saveInChunks(key, fileBytes);
             
-            return ResponseEntity.ok(Map.of("message", "Brochure updated successfully stored in database"));
+            return ResponseEntity.ok(Map.of("message", "Brochure updated successfully (stored in " + 
+                (int) Math.ceil((double) fileBytes.length / (10 * 1024 * 1024)) + " chunks)"));
         } catch (Exception e) {
-            e.printStackTrace(); // Log the stack trace in production logs
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(Map.of("error", "Could not store file: " + e.getMessage()));
         }
     }

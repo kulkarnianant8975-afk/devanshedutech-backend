@@ -25,6 +25,7 @@ import java.util.Arrays;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@org.springframework.transaction.annotation.EnableTransactionManagement
 public class SecurityConfig {
 
     private final CustomUserDetailsService customUserDetailsService;

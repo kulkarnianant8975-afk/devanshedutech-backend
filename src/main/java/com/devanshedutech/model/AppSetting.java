@@ -12,6 +12,7 @@ public class AppSetting {
     @Id
     private String settingKey;
     
-    @Column(columnDefinition = "TEXT")
-    private String settingValue;
+    @Lob
+    @Column(name = "setting_value")
+    private byte[] settingValue;
 }
