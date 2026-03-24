@@ -78,7 +78,15 @@ public class SettingsController {
                     base64Content = base64Content.substring("data:application/pdf;base64,".length());
                 }
                 
-                byte[] pdfBytes = java.util.Base64.getDecoder().decode(base64Content);
+                byte[] pdfBytes;
+                try {
+                    pdfBytes = java.util.Base64.getDecoder().decode(base64Content);
+                } catch (IllegalArgumentException e) {
+                    // Not a valid base64 - likely an old filename from disk-based storage
+                    // Since Render is ephemeral, these old files are likely gone anyway.
+                    return ResponseEntity.notFound().build();
+                }
+                
                 Resource resource = new org.springframework.core.io.ByteArrayResource(pdfBytes);
                 
                 return ResponseEntity.ok()
