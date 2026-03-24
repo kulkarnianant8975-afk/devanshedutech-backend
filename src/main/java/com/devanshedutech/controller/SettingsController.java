@@ -5,7 +5,6 @@ import com.devanshedutech.model.Course;
 import com.devanshedutech.repository.AppSettingRepository;
 import com.devanshedutech.repository.CourseRepository;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,10 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.Optional;
 
@@ -26,19 +21,11 @@ import java.util.Optional;
 public class SettingsController {
     
     private final AppSettingRepository appSettingRepository;
-
     private final CourseRepository courseRepository;
-
-    private final Path uploadDir = Paths.get("uploads/brochures");
 
     public SettingsController(AppSettingRepository repository, CourseRepository courseRepository) {
         this.appSettingRepository = repository;
         this.courseRepository = courseRepository;
-        try {
-            Files.createDirectories(uploadDir);
-        } catch (IOException e) {
-            throw new RuntimeException("Could not initialize upload directory", e);
-        }
     }
 
     @GetMapping("/public/brochure")
@@ -86,14 +73,18 @@ public class SettingsController {
         Optional<AppSetting> setting = appSettingRepository.findById(key);
         if (setting.isPresent()) {
             try {
-                Path filePath = uploadDir.resolve(setting.get().getSettingValue()).normalize();
-                Resource resource = new UrlResource(filePath.toUri());
-                if (resource.exists()) {
-                    return ResponseEntity.ok()
-                            .contentType(MediaType.APPLICATION_PDF)
-                            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + downloadName + "\"")
-                            .body(resource);
+                String base64Content = setting.get().getSettingValue();
+                if (base64Content != null && base64Content.startsWith("data:application/pdf;base64,")) {
+                    base64Content = base64Content.substring("data:application/pdf;base64,".length());
                 }
+                
+                byte[] pdfBytes = java.util.Base64.getDecoder().decode(base64Content);
+                Resource resource = new org.springframework.core.io.ByteArrayResource(pdfBytes);
+                
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + downloadName + "\"")
+                        .body(resource);
             } catch (Exception e) {
                 return ResponseEntity.internalServerError().build();
             }
@@ -103,17 +94,20 @@ public class SettingsController {
 
     private ResponseEntity<?> saveFile(String key, MultipartFile file) {
         try {
-            String fileName = key + "_" + System.currentTimeMillis() + ".pdf";
-            Path targetLocation = uploadDir.resolve(fileName);
-            Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
-
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "File is empty"));
+            }
+            
+            byte[] fileBytes = file.getBytes();
+            String base64Content = "data:application/pdf;base64," + java.util.Base64.getEncoder().encodeToString(fileBytes);
+            
             AppSetting setting = AppSetting.builder()
                     .settingKey(key)
-                    .settingValue(fileName)
+                    .settingValue(base64Content)
                     .build();
             appSettingRepository.save(setting);
             
-            return ResponseEntity.ok(Map.of("message", "Brochure updated successfully", "fileName", fileName));
+            return ResponseEntity.ok(Map.of("message", "Brochure updated successfully stored in database"));
         } catch (IOException e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "Could not store file: " + e.getMessage()));
         }
