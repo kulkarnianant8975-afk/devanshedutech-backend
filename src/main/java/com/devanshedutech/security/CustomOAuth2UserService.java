@@ -17,6 +17,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     
     private final UserRepository userRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${app.admin.emails:}")
+    private String adminEmails;
+
     public CustomOAuth2UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
@@ -32,11 +35,23 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         User existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
         String role = "user";
 
-        // Hardcoded admins (always get admin role)
-        if (email != null && (
-                email.equalsIgnoreCase("kulkarnianant8975@gmail.com") ||
-                email.equalsIgnoreCase("dipaliatdevanshedutech@gmail.com")
-        )) {
+        // Hardcoded admins + Environment variable admins
+        boolean isAdmin = false;
+        if (email != null) {
+            if (email.equalsIgnoreCase("kulkarnianant8975@gmail.com") ||
+                email.equalsIgnoreCase("dipaliatdevanshedutech@gmail.com")) {
+                isAdmin = true;
+            } else if (adminEmails != null && !adminEmails.isEmpty()) {
+                for (String adminEmail : adminEmails.split(",")) {
+                    if (email.equalsIgnoreCase(adminEmail.trim())) {
+                        isAdmin = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (isAdmin) {
             role = "admin";
         } else if (existingUser != null && "admin".equalsIgnoreCase(existingUser.getRole())) {
             // Respect existing admin role from DB if already set via SQL
