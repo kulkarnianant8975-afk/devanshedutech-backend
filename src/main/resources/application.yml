@@ -23,18 +23,18 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         jdbc:
           lob:
             non_contextual_creation: true
 
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: 65MB
+      max-request-size: 65MB
 
   security:
     oauth2:
