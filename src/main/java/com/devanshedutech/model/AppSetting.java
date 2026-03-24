@@ -12,6 +12,7 @@ public class AppSetting {
     @Id
     private String settingKey;
     
+    @Lob
     @Column(columnDefinition = "TEXT")
     private String settingValue;
 }

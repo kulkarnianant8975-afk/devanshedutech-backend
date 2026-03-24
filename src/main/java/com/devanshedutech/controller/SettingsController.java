@@ -116,7 +116,8 @@ public class SettingsController {
             appSettingRepository.save(setting);
             
             return ResponseEntity.ok(Map.of("message", "Brochure updated successfully stored in database"));
-        } catch (IOException e) {
+        } catch (Exception e) {
+            e.printStackTrace(); // Log the stack trace in production logs
             return ResponseEntity.internalServerError().body(Map.of("error", "Could not store file: " + e.getMessage()));
         }
     }
