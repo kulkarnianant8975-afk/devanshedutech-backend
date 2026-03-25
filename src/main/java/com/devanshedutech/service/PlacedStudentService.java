@@ -52,7 +52,32 @@ public class PlacedStudentService {
         placedStudentRepository.deleteById(id);
     }
 
+    public org.springframework.http.ResponseEntity<byte[]> getPlacedStudentImage(String id) {
+        PlacedStudent student = placedStudentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Placed student not found"));
+        String imageUrl = student.getImageUrl();
+        if (imageUrl != null && imageUrl.startsWith("data:image")) {
+            String[] parts = imageUrl.split(",");
+            if (parts.length == 2) {
+                String meta = parts[0]; 
+                String base64Data = parts[1];
+                byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Data);
+                String mimeType = meta.substring(meta.indexOf(":") + 1, meta.indexOf(";"));
+                
+                return org.springframework.http.ResponseEntity.ok()
+                        .contentType(org.springframework.http.MediaType.parseMediaType(mimeType))
+                        .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "max-age=31536000")
+                        .body(imageBytes);
+            }
+        }
+        return org.springframework.http.ResponseEntity.notFound().build();
+    }
+
     private PlacedStudentDTOs.PlacedStudentResponse mapToResponse(PlacedStudent student) {
+        String url = student.getImageUrl();
+        if (url != null && url.startsWith("data:image")) {
+            url = "/api/placed-students/" + student.getId() + "/image";
+        }
         return PlacedStudentDTOs.PlacedStudentResponse.builder()
                 .id(student.getId())
                 .name(student.getName())
@@ -60,7 +85,7 @@ public class PlacedStudentService {
                 .role(student.getRole())
                 .salaryPackage(student.getSalaryPackage())
                 .testimonial(student.getTestimonial())
-                .imageUrl(student.getImageUrl())
+                .imageUrl(url)
                 .createdAt(student.getCreatedAt())
                 .build();
     }
