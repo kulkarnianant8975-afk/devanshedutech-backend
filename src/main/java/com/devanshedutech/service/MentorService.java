@@ -50,13 +50,38 @@ public class MentorService {
         mentorRepository.deleteById(id);
     }
 
+    public org.springframework.http.ResponseEntity<byte[]> getMentorImage(String id) {
+        Mentor mentor = mentorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Mentor not found"));
+        String imageUrl = mentor.getImageUrl();
+        if (imageUrl != null && imageUrl.startsWith("data:image")) {
+            String[] parts = imageUrl.split(",");
+            if (parts.length == 2) {
+                String meta = parts[0]; 
+                String base64Data = parts[1];
+                byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Data);
+                String mimeType = meta.substring(meta.indexOf(":") + 1, meta.indexOf(";"));
+                
+                return org.springframework.http.ResponseEntity.ok()
+                        .contentType(org.springframework.http.MediaType.parseMediaType(mimeType))
+                        .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "max-age=31536000")
+                        .body(imageBytes);
+            }
+        }
+        return org.springframework.http.ResponseEntity.notFound().build();
+    }
+
     private MentorDTOs.MentorResponse mapToResponse(Mentor mentor) {
+        String url = mentor.getImageUrl();
+        if (url != null && url.startsWith("data:image")) {
+            url = "/api/mentors/" + mentor.getId() + "/image";
+        }
         return MentorDTOs.MentorResponse.builder()
                 .id(mentor.getId())
                 .name(mentor.getName())
                 .role(mentor.getRole())
                 .description(mentor.getDescription())
-                .imageUrl(mentor.getImageUrl())
+                .imageUrl(url)
                 .linkedinUrl(mentor.getLinkedinUrl())
                 .createdAt(mentor.getCreatedAt())
                 .build();

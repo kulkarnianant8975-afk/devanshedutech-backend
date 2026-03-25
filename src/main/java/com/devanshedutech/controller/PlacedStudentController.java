@@ -39,4 +39,9 @@ public class PlacedStudentController {
     public void deletePlacedStudent(@PathVariable String id) {
         placedStudentService.deletePlacedStudent(id);
     }
+
+    @GetMapping("/{id}/image")
+    public org.springframework.http.ResponseEntity<byte[]> getPlacedStudentImage(@PathVariable String id) {
+        return placedStudentService.getPlacedStudentImage(id);
+    }
 }

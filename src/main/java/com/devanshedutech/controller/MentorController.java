@@ -39,4 +39,9 @@ public class MentorController {
     public void deleteMentor(@PathVariable String id) {
         mentorService.deleteMentor(id);
     }
+
+    @GetMapping("/{id}/image")
+    public org.springframework.http.ResponseEntity<byte[]> getMentorImage(@PathVariable String id) {
+        return mentorService.getMentorImage(id);
+    }
 }

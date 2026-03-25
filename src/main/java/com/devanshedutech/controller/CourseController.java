@@ -74,7 +74,33 @@ public class CourseController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/{id}/image")
+    public ResponseEntity<byte[]> getCourseImage(@PathVariable String id) {
+        return courseRepository.findById(id).map(course -> {
+            String imageUrl = course.getImage();
+            if (imageUrl != null && imageUrl.startsWith("data:image")) {
+                String[] parts = imageUrl.split(",");
+                if (parts.length == 2) {
+                    String meta = parts[0]; 
+                    String base64Data = parts[1];
+                    byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Data);
+                    String mimeType = meta.substring(meta.indexOf(":") + 1, meta.indexOf(";"));
+                    
+                    return ResponseEntity.ok()
+                            .contentType(org.springframework.http.MediaType.parseMediaType(mimeType))
+                            .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "max-age=31536000")
+                            .body(imageBytes);
+                }
+            }
+            return ResponseEntity.notFound().<byte[]>build();
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     private CourseResponse mapToResponse(Course course) {
+        String url = course.getImage();
+        if (url != null && url.startsWith("data:image")) {
+            url = "/api/courses/" + course.getId() + "/image";
+        }
         return CourseResponse.builder()
                 .id(course.getId())
                 .name(course.getName())
@@ -82,7 +108,7 @@ public class CourseController {
                 .duration(course.getDuration())
                 .price(course.getPrice())
                 .category(course.getCategory())
-                .image(course.getImage())
+                .image(url)
                 .build();
     }
 }
