@@ -6,6 +6,8 @@ import com.devanshedutech.repository.PlacedStudentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,6 +17,7 @@ import java.util.stream.Collectors;
 public class PlacedStudentService {
     private final PlacedStudentRepository placedStudentRepository;
 
+    @Cacheable("placedStudents")
     public List<PlacedStudentDTOs.PlacedStudentResponse> getAllPlacedStudents() {
         return placedStudentRepository.findAll().stream()
                 .map(this::mapToResponse)
@@ -22,6 +25,7 @@ public class PlacedStudentService {
     }
 
     @Transactional
+    @CacheEvict(value = "placedStudents", allEntries = true)
     public PlacedStudentDTOs.PlacedStudentResponse createPlacedStudent(PlacedStudentDTOs.PlacedStudentRequest request) {
         PlacedStudent student = PlacedStudent.builder()
                 .name(request.getName())
@@ -35,6 +39,7 @@ public class PlacedStudentService {
     }
 
     @Transactional
+    @CacheEvict(value = "placedStudents", allEntries = true)
     public PlacedStudentDTOs.PlacedStudentResponse updatePlacedStudent(String id, PlacedStudentDTOs.PlacedStudentRequest request) {
         PlacedStudent student = placedStudentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Placed student not found"));
@@ -48,6 +53,7 @@ public class PlacedStudentService {
     }
 
     @Transactional
+    @CacheEvict(value = "placedStudents", allEntries = true)
     public void deletePlacedStudent(String id) {
         placedStudentRepository.deleteById(id);
     }

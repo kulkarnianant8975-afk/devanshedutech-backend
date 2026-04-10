@@ -6,6 +6,8 @@ import com.devanshedutech.repository.MentorRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,6 +17,7 @@ import java.util.stream.Collectors;
 public class MentorService {
     private final MentorRepository mentorRepository;
 
+    @Cacheable("mentors")
     public List<MentorDTOs.MentorResponse> getAllMentors() {
         return mentorRepository.findAll().stream()
                 .map(this::mapToResponse)
@@ -22,6 +25,7 @@ public class MentorService {
     }
 
     @Transactional
+    @CacheEvict(value = "mentors", allEntries = true)
     public MentorDTOs.MentorResponse createMentor(MentorDTOs.MentorRequest request) {
         Mentor mentor = Mentor.builder()
                 .name(request.getName())
@@ -34,6 +38,7 @@ public class MentorService {
     }
 
     @Transactional
+    @CacheEvict(value = "mentors", allEntries = true)
     public MentorDTOs.MentorResponse updateMentor(String id, MentorDTOs.MentorRequest request) {
         Mentor mentor = mentorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Mentor not found"));
@@ -46,6 +51,7 @@ public class MentorService {
     }
 
     @Transactional
+    @CacheEvict(value = "mentors", allEntries = true)
     public void deleteMentor(String id) {
         mentorRepository.deleteById(id);
     }

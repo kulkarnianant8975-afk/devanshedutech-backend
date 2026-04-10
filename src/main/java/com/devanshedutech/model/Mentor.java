@@ -10,7 +10,10 @@ import org.hibernate.annotations.GenericGenerator;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "mentors")
+@Table(name = "mentors", indexes = {
+    @Index(name = "idx_mentor_name", columnList = "name"),
+    @Index(name = "idx_mentor_role", columnList = "role")
+})
 @Data
 @Builder
 @NoArgsConstructor
