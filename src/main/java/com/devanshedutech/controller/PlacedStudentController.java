@@ -22,13 +22,13 @@ public class PlacedStudentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public PlacedStudentDTOs.PlacedStudentResponse createPlacedStudent(@RequestBody PlacedStudentDTOs.PlacedStudentRequest request) {
         return placedStudentService.createPlacedStudent(request);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public PlacedStudentDTOs.PlacedStudentResponse updatePlacedStudent(@PathVariable String id, @RequestBody PlacedStudentDTOs.PlacedStudentRequest request) {
         return placedStudentService.updatePlacedStudent(id, request);
     }

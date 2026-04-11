@@ -22,13 +22,13 @@ public class MentorController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public MentorDTOs.MentorResponse createMentor(@RequestBody MentorDTOs.MentorRequest request) {
         return mentorService.createMentor(request);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public MentorDTOs.MentorResponse updateMentor(@PathVariable String id, @RequestBody MentorDTOs.MentorRequest request) {
         return mentorService.updateMentor(id, request);
     }

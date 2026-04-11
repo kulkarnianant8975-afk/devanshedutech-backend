@@ -48,14 +48,14 @@ public class CustomUserDetailsService implements UserDetailsService {
                 }
             }
             if (isAdmin) {
-                role = "admin";
+                role = "ADMIN";
             }
         }
 
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getEmail())
                 .password(user.getPassword())
-                .authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)))
+                .authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())))
                 .build();
     }
 }

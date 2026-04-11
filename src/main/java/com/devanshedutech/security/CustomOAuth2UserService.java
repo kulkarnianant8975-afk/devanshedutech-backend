@@ -33,7 +33,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String picture = oAuth2User.getAttribute("picture");
         
         User existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
-        String role = "user";
+        String role = "USER";
 
         // Hardcoded admins + Environment variable admins
         boolean isAdmin = false;
@@ -52,10 +52,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
 
         if (isAdmin) {
-            role = "admin";
-        } else if (existingUser != null && "admin".equalsIgnoreCase(existingUser.getRole())) {
+            role = "ADMIN";
+        } else if (existingUser != null && "ADMIN".equalsIgnoreCase(existingUser.getRole())) {
             // Respect existing admin role from DB if already set via SQL
-            role = "admin";
+            role = "ADMIN";
         }
         
         if (existingUser == null) {
@@ -75,7 +75,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
 
         return new DefaultOAuth2User(
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)),
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())),
                 oAuth2User.getAttributes(),
                 "email"
         );

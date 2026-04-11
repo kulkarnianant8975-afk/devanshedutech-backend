@@ -43,7 +43,7 @@ public class StatsController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StatsResponse> getStats() {
         long totalLeads = leadRepository.count();
         long totalCourses = courseRepository.count();

@@ -34,7 +34,7 @@ public class CourseController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CourseResponse> createCourse(@RequestBody CourseRequest request) {
         Course course = Course.builder()
                 .id(UUID.randomUUID().toString())

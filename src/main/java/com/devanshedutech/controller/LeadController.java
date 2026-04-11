@@ -26,7 +26,7 @@ public class LeadController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<LeadResponse>> getAllLeads() {
         return ResponseEntity.ok(
                 leadRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
@@ -51,7 +51,7 @@ public class LeadController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<LeadResponse> updateLeadStatus(@PathVariable String id, @RequestBody LeadStatusUpdate request) {
         return leadRepository.findById(id).map(lead -> {
             lead.setStatus(request.getStatus());
