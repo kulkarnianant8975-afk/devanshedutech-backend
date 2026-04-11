@@ -61,7 +61,7 @@ public class LeadController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteLead(@PathVariable String id) {
         if (!leadRepository.existsById(id)) {
             return ResponseEntity.notFound().build();

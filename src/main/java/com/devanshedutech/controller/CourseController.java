@@ -50,7 +50,7 @@ public class CourseController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CourseResponse> updateCourse(@PathVariable String id, @RequestBody CourseRequest request) {
         return courseRepository.findById(id).map(course -> {
             course.setName(request.getName());
@@ -65,7 +65,7 @@ public class CourseController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteCourse(@PathVariable String id) {
         if (!courseRepository.existsById(id)) {
             return ResponseEntity.notFound().build();

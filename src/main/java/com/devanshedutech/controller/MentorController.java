@@ -35,7 +35,7 @@ public class MentorController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public void deleteMentor(@PathVariable String id) {
         mentorService.deleteMentor(id);
     }

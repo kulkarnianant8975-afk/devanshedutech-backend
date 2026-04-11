@@ -69,7 +69,7 @@ public class SettingsController {
     }
 
     @PostMapping("/settings/brochure/upload/{courseId}")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> uploadCourseBrochureFile(@PathVariable String courseId, @RequestParam("file") MultipartFile file) {
         return saveFile("COURSE_BROCHURE_" + courseId, file);
     }

@@ -35,7 +35,7 @@ public class PlacedStudentController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public void deletePlacedStudent(@PathVariable String id) {
         placedStudentService.deletePlacedStudent(id);
     }
