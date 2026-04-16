@@ -7,6 +7,7 @@ import com.devanshedutech.repository.HiringRepository;
 import com.devanshedutech.repository.LeadRepository;
 import com.devanshedutech.repository.MentorRepository;
 import com.devanshedutech.repository.PlacedStudentRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,6 +45,7 @@ public class StatsController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Cacheable(value = "stats", key = "'dashboard'")
     public ResponseEntity<StatsResponse> getStats() {
         long totalLeads = leadRepository.count();
         long totalCourses = courseRepository.count();

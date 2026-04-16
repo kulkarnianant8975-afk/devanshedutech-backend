@@ -4,6 +4,9 @@ import com.devanshedutech.dto.CourseDTOs.CourseRequest;
 import com.devanshedutech.dto.CourseDTOs.CourseResponse;
 import com.devanshedutech.model.Course;
 import com.devanshedutech.repository.CourseRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,10 +27,14 @@ public class CourseController {
     }
 
     @GetMapping
+    @Cacheable(value = "courses", key = "'all-' + #limit")
     public ResponseEntity<List<CourseResponse>> getAllCourses(@RequestParam(required = false) Integer limit) {
-        List<Course> courses = courseRepository.findAll();
-        if (limit != null && limit > 0 && courses.size() > limit) {
-            courses = courses.subList(0, limit);
+        List<Course> courses;
+        if (limit != null && limit > 0) {
+            // Use DB-level LIMIT — avoids fetching all rows then slicing in memory
+            courses = courseRepository.findAll(PageRequest.of(0, limit)).getContent();
+        } else {
+            courses = courseRepository.findAll();
         }
         List<CourseResponse> response = courses.stream().map(this::mapToResponse).collect(Collectors.toList());
         return ResponseEntity.ok(response);
@@ -35,6 +42,7 @@ public class CourseController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = "courses", allEntries = true)
     public ResponseEntity<CourseResponse> createCourse(@RequestBody CourseRequest request) {
         Course course = Course.builder()
                 .id(UUID.randomUUID().toString())
@@ -51,6 +59,7 @@ public class CourseController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = "courses", allEntries = true)
     public ResponseEntity<CourseResponse> updateCourse(@PathVariable String id, @RequestBody CourseRequest request) {
         return courseRepository.findById(id).map(course -> {
             course.setName(request.getName());
@@ -66,6 +75,7 @@ public class CourseController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = "courses", allEntries = true)
     public ResponseEntity<Void> deleteCourse(@PathVariable String id) {
         if (!courseRepository.existsById(id)) {
             return ResponseEntity.notFound().build();

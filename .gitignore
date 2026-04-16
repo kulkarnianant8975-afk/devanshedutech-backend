@@ -34,3 +34,8 @@ build/
 
 ### Custom ###
 uploads/
+.env
+*.env
+
+maven-settings.xml
+
