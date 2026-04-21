@@ -20,13 +20,15 @@ spring:
     api-key: ${GEMINI_API_KEY}
 
   jpa:
-    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
     hibernate:
       ddl-auto: update
     show-sql: false
     properties:
       hibernate:
+        temp:
+          use_jdbc_metadata_defaults: false
         format_sql: false
         jdbc:
           lob:
