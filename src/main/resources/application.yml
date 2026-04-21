@@ -20,6 +20,7 @@ spring:
     api-key: ${GEMINI_API_KEY}
 
   jpa:
+    database: postgresql
     open-in-view: false
     hibernate:
       ddl-auto: update
