@@ -54,10 +54,9 @@ public class SecurityConfig {
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/public/brochures-info/**").permitAll()
-                .requestMatchers("/api/public/brochures-download/**").permitAll()
-                .requestMatchers("/api/public/brochure/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/public/brochures-info/**").permitAll()
+                .requestMatchers("/public/brochures-download/**").permitAll()
+                .requestMatchers("/public/brochure/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/courses/**").permitAll()

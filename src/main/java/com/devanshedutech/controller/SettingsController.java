@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api")
 public class SettingsController {
     
     private final AppSettingRepository appSettingRepository;
@@ -34,10 +33,10 @@ public class SettingsController {
         this.brochureChunkRepository = brochureChunkRepository;
     }
 
-    @GetMapping("/public/brochure")
+    @GetMapping("/api/public/brochure")
     public ResponseEntity<?> getBrochureInfo() {
         return appSettingRepository.findById("GLOBAL_BROCHURE")
-                .map(setting -> ResponseEntity.ok(Map.of("downloadUrl", "/api/public/brochure/download")))
+                .map(setting -> ResponseEntity.ok(Map.of("downloadUrl", "/public/brochure/download")))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -46,7 +45,7 @@ public class SettingsController {
         return downloadFile("GLOBAL_BROCHURE", "Devansh_EduTech_Brochure.pdf");
     }
 
-    @PostMapping("/settings/brochure/upload")
+    @PostMapping("/api/settings/brochure/upload")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> uploadBrochureFile(@RequestParam("file") MultipartFile file) {
         return saveFile("GLOBAL_BROCHURE", file);
@@ -55,7 +54,7 @@ public class SettingsController {
     @GetMapping("/public/brochures-info/{courseId}")
     public ResponseEntity<?> getCourseBrochureInfo(@PathVariable String courseId) {
         return appSettingRepository.findById("COURSE_BROCHURE_" + courseId)
-                .map(setting -> ResponseEntity.ok(Map.of("downloadUrl", "/api/public/brochures-download/" + courseId)))
+                .map(setting -> ResponseEntity.ok(Map.of("downloadUrl", "/public/brochures-download/" + courseId)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -69,7 +68,7 @@ public class SettingsController {
         return downloadFile("COURSE_BROCHURE_" + courseId, fileName);
     }
 
-    @PostMapping("/settings/brochure/upload/{courseId}")
+    @PostMapping("/api/settings/brochure/upload/{courseId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> uploadCourseBrochureFile(@PathVariable String courseId, @RequestParam("file") MultipartFile file) {
         return saveFile("COURSE_BROCHURE_" + courseId, file);
