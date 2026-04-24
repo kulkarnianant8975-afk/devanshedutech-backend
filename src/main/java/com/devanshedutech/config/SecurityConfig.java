@@ -54,6 +54,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/open/**").permitAll()
                 .requestMatchers("/public/brochures-info/**").permitAll()
                 .requestMatchers("/public/brochures-download/**").permitAll()
                 .requestMatchers("/public/brochure/**").permitAll()

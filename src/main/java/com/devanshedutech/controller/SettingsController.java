@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
+@RequestMapping("/api")
 public class SettingsController {
     
     private final AppSettingRepository appSettingRepository;
