@@ -36,8 +36,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 15MB   # Reduced from 65MB — images go to Cloudinary, not DB
-      max-request-size: 15MB
+      max-file-size: 60MB   # Matches controller limit for brochures
+      max-request-size: 60MB
 
   security:
     oauth2:

@@ -8,9 +8,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.cache.annotation.EnableCaching;
 
 @SpringBootApplication
 @EnableScheduling
+@EnableCaching
 public class DevanshEduTechApplication {
 
     @Autowired

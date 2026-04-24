@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,6 +75,7 @@ public class SettingsController {
         return saveFile("COURSE_BROCHURE_" + courseId, file);
     }
 
+    @Transactional(readOnly = true)
     private ResponseEntity<Resource> downloadFile(String key, String downloadName) {
         Optional<AppSetting> setting = appSettingRepository.findById(key);
         if (setting.isPresent()) {
@@ -136,6 +138,7 @@ public class SettingsController {
         appSettingRepository.save(setting);
     }
 
+    @Transactional
     public ResponseEntity<?> saveFile(String key, MultipartFile file) {
         try {
             if (file.isEmpty()) {
