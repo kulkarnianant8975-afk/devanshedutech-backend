@@ -52,14 +52,14 @@ public class SettingsController {
         return saveFile("GLOBAL_BROCHURE", file);
     }
 
-    @GetMapping("/public/brochure/{courseId}")
+    @GetMapping("/public/brochures-info/{courseId}")
     public ResponseEntity<?> getCourseBrochureInfo(@PathVariable String courseId) {
         return appSettingRepository.findById("COURSE_BROCHURE_" + courseId)
-                .map(setting -> ResponseEntity.ok(Map.of("downloadUrl", "/api/public/brochure/download/" + courseId)))
+                .map(setting -> ResponseEntity.ok(Map.of("downloadUrl", "/api/public/brochures-download/" + courseId)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/public/brochure/download/{courseId}")
+    @GetMapping("/public/brochures-download/{courseId}")
     public ResponseEntity<Resource> downloadCourseBrochure(@PathVariable String courseId) {
         String fileName = "Course_Brochure.pdf";
         Optional<Course> course = courseRepository.findById(courseId);
