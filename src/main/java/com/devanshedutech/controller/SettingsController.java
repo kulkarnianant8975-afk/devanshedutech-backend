@@ -42,12 +42,14 @@ public class SettingsController {
     }
 
     @GetMapping("/public/brochure/download")
+    @Transactional(readOnly = true)  // REQUIRED: @Lob byte[] (oid) must be read inside a transaction
     public ResponseEntity<Resource> downloadBrochure() {
         return downloadFile("GLOBAL_BROCHURE", "Devansh_EduTech_Brochure.pdf");
     }
 
     @PostMapping("/settings/brochure/upload")
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional  // FIX: must be on the public method, not on saveFile() (same-class call bypasses proxy)
     public ResponseEntity<?> uploadBrochureFile(@RequestParam("file") MultipartFile file) {
         return saveFile("GLOBAL_BROCHURE", file);
     }
@@ -60,6 +62,7 @@ public class SettingsController {
     }
 
     @GetMapping("/public/brochure/download/{courseId}")
+    @Transactional(readOnly = true)  // REQUIRED: @Lob byte[] (oid) must be read inside a transaction
     public ResponseEntity<Resource> downloadCourseBrochure(@PathVariable String courseId) {
         String fileName = "Course_Brochure.pdf";
         Optional<Course> course = courseRepository.findById(courseId);
@@ -71,6 +74,7 @@ public class SettingsController {
 
     @PostMapping("/settings/brochure/upload/{courseId}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional  // FIX: must be on the public method, not on saveFile() (same-class call bypasses proxy)
     public ResponseEntity<?> uploadCourseBrochureFile(@PathVariable String courseId, @RequestParam("file") MultipartFile file) {
         return saveFile("COURSE_BROCHURE_" + courseId, file);
     }
