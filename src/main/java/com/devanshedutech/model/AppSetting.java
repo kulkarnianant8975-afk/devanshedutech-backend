@@ -12,7 +12,8 @@ public class AppSetting {
     @Id
     private String settingKey;
     
-    @Lob
-    @Column(name = "setting_value")
+    // NOTE: Do NOT use @Lob here — same reason as BrochureChunk.data.
+    // Hibernate 6 maps @Lob byte[] to 'oid', but the column is 'bytea'.
+    @Column(name = "setting_value", columnDefinition = "bytea")
     private byte[] settingValue;
 }
