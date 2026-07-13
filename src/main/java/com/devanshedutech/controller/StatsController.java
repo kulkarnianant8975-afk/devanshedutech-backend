@@ -1,5 +1,6 @@
 package com.devanshedutech.controller;
 
+import com.devanshedutech.dto.StatsDTOs.CourseLead;
 import com.devanshedutech.dto.StatsDTOs.MonthlyLead;
 import com.devanshedutech.dto.StatsDTOs.StatsResponse;
 import com.devanshedutech.repository.CourseRepository;
@@ -20,6 +21,8 @@ import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/stats")
@@ -68,6 +71,18 @@ public class StatsController {
             monthlyLeads.add(new MonthlyLead(monthName, count));
         }
 
+        // Real leads-per-course, top 8 by volume. courseInterested is free text on
+        // the lead, not a foreign key, so group on the stored value.
+        List<CourseLead> leadsByCourse = leadRepository.findAll().stream()
+                .map(l -> l.getCourseInterested() == null || l.getCourseInterested().isBlank()
+                        ? "Not specified" : l.getCourseInterested().trim())
+                .collect(Collectors.groupingBy(name -> name, Collectors.counting()))
+                .entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(8)
+                .map(e -> new CourseLead(e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
+
         StatsResponse response = StatsResponse.builder()
                 .totalLeads(totalLeads)
                 .totalCourses(totalCourses)
@@ -75,6 +90,7 @@ public class StatsController {
                 .totalMentors(totalMentors)
                 .totalPlacedStudents(totalPlacedStudents)
                 .monthlyLeads(monthlyLeads)
+                .leadsByCourse(leadsByCourse)
                 .build();
 
         return ResponseEntity.ok(response);
