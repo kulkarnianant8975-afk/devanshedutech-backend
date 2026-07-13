@@ -14,12 +14,11 @@ import java.util.Collections;
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final AdminRegistry adminRegistry;
 
-    @org.springframework.beans.factory.annotation.Value("${app.admin.emails:}")
-    private String adminEmails;
-
-    public CustomUserDetailsService(UserRepository userRepository) {
+    public CustomUserDetailsService(UserRepository userRepository, AdminRegistry adminRegistry) {
         this.userRepository = userRepository;
+        this.adminRegistry = adminRegistry;
     }
 
     @Override
@@ -31,31 +30,12 @@ public class CustomUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("User uses OAuth2 Login");
         }
 
-        String role = user.getRole();
-        
-        // Check for hardcoded/env-variable admins
-        if (email != null) {
-            boolean isAdmin = false;
-            if (email.equalsIgnoreCase("kulkarnianant8975@gmail.com") ||
-                email.equalsIgnoreCase("dipaliatdevanshedutech@gmail.com")) {
-                isAdmin = true;
-            } else if (adminEmails != null && !adminEmails.isEmpty()) {
-                for (String adminEmail : adminEmails.split(",")) {
-                    if (email.equalsIgnoreCase(adminEmail.trim())) {
-                        isAdmin = true;
-                        break;
-                    }
-                }
-            }
-            if (isAdmin) {
-                role = "ADMIN";
-            }
-        }
+        String role = adminRegistry.resolveRole(user.getEmail(), user.getRole());
 
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getEmail())
                 .password(user.getPassword())
-                .authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())))
+                .authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)))
                 .build();
     }
 }

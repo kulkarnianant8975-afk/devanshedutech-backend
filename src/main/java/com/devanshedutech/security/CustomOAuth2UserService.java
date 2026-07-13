@@ -16,48 +16,31 @@ import java.util.Collections;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     
     private final UserRepository userRepository;
+    private final AdminRegistry adminRegistry;
 
-    @org.springframework.beans.factory.annotation.Value("${app.admin.emails:}")
-    private String adminEmails;
-
-    public CustomOAuth2UserService(UserRepository userRepository) {
+    public CustomOAuth2UserService(UserRepository userRepository, AdminRegistry adminRegistry) {
         this.userRepository = userRepository;
+        this.adminRegistry = adminRegistry;
     }
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oAuth2User = super.loadUser(userRequest);
-        
+
         String email = oAuth2User.getAttribute("email");
         String name = oAuth2User.getAttribute("name");
         String picture = oAuth2User.getAttribute("picture");
-        
+
         User existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
+
         String role = "USER";
-
-        // Hardcoded admins + Environment variable admins
-        boolean isAdmin = false;
-        if (email != null) {
-            if (email.equalsIgnoreCase("kulkarnianant8975@gmail.com") ||
-                email.equalsIgnoreCase("dipaliatdevanshedutech@gmail.com")) {
-                isAdmin = true;
-            } else if (adminEmails != null && !adminEmails.isEmpty()) {
-                for (String adminEmail : adminEmails.split(",")) {
-                    if (email.equalsIgnoreCase(adminEmail.trim())) {
-                        isAdmin = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (isAdmin) {
+        if (adminRegistry.isAdmin(email)) {
             role = "ADMIN";
         } else if (existingUser != null && "ADMIN".equalsIgnoreCase(existingUser.getRole())) {
-            // Respect existing admin role from DB if already set via SQL
+            // Respect an existing admin role already set directly in the DB
             role = "ADMIN";
         }
-        
+
         if (existingUser == null) {
             User user = User.builder()
                     .id(java.util.UUID.randomUUID().toString())

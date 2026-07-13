@@ -19,9 +19,11 @@ public class Course {
     private String description;
     
     private String duration;
-    
+
     private String price;
-    
+
+    private String level;
+
     private String category;
     
     @Column(columnDefinition = "TEXT")

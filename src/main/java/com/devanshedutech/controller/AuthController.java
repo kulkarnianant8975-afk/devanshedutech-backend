@@ -59,7 +59,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body("User already exists");
         }
         
-        String role = "user"; // Standard registration defaults to user. Admins must be manually updated in DB.
+        String role = "USER"; // Standard registration defaults to user. Admins must be manually updated in DB.
         User user = User.builder()
                 .id(UUID.randomUUID().toString())
                 .email(registerRequest.getEmail().toLowerCase())
@@ -138,12 +138,16 @@ public class AuthController {
     }
 
     private UserResponse mapToResponse(User user) {
+        // Role is always emitted uppercase. Rows written before this was enforced
+        // may hold "user"/"admin" lowercase, so normalise on the way out rather
+        // than trusting the stored value.
+        String role = user.getRole() == null ? "USER" : user.getRole().toUpperCase();
         return UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .displayName(user.getDisplayName())
                 .photoURL(user.getPhotoUrl())
-                .role(user.getRole())
+                .role(role)
                 .build();
     }
 }

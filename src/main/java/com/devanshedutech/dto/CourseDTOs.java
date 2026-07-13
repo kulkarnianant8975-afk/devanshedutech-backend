@@ -12,10 +12,11 @@ public class CourseDTOs {
         private String description;
         private String duration;
         private String price;
+        private String level;
         private String category;
         private String image;
     }
-    
+
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class CourseResponse {
         private String id;
@@ -23,6 +24,7 @@ public class CourseDTOs {
         private String description;
         private String duration;
         private String price;
+        private String level;
         private String category;
         private String image;
     }

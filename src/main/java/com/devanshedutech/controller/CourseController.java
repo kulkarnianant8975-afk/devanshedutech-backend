@@ -50,6 +50,7 @@ public class CourseController {
                 .description(request.getDescription())
                 .duration(request.getDuration())
                 .price(request.getPrice())
+                .level(request.getLevel())
                 .category(request.getCategory())
                 .image(request.getImage())
                 .build();
@@ -66,6 +67,7 @@ public class CourseController {
             course.setDescription(request.getDescription());
             course.setDuration(request.getDuration());
             course.setPrice(request.getPrice());
+            course.setLevel(request.getLevel());
             course.setCategory(request.getCategory());
             course.setImage(request.getImage());
             Course updated = courseRepository.save(course);
@@ -117,6 +119,7 @@ public class CourseController {
                 .description(course.getDescription())
                 .duration(course.getDuration())
                 .price(course.getPrice())
+                .level(course.getLevel())
                 .category(course.getCategory())
                 .image(url)
                 .build();

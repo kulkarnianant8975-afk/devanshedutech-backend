@@ -5,6 +5,7 @@ import com.devanshedutech.repository.CourseRepository;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class ChatService {
 
@@ -75,10 +77,14 @@ public class ChatService {
         contents.add(new Content("user", List.of(new Part(message))));
         geminiRequest.setContents(contents);
 
-        String url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" + apiKey;
-        
+        // The key travels in a header, never the query string. A RestTemplate failure
+        // (timeout, connect error) puts the request URL into the exception message, so a
+        // key in the URL can be echoed to the caller by any handler that logs or returns it.
+        String url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent";
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-goog-api-key", apiKey);
         HttpEntity<GeminiRequest> entity = new HttpEntity<>(geminiRequest, headers);
 
         try {
@@ -87,16 +93,30 @@ public class ChatService {
                 List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.get("candidates");
                 if (!candidates.isEmpty()) {
                     Map<String, Object> firstCandidate = candidates.get(0);
+                    // A safety-blocked candidate has a finishReason but no content/parts.
                     Map<String, Object> content = (Map<String, Object>) firstCandidate.get("content");
-                    List<Map<String, String>> parts = (List<Map<String, String>>) content.get("parts");
-                    return parts.get(0).get("text");
+                    if (content != null) {
+                        List<Map<String, String>> parts = (List<Map<String, String>>) content.get("parts");
+                        if (parts != null && !parts.isEmpty()) {
+                            return parts.get(0).get("text");
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
-            throw new RuntimeException("Failed to get AI response: " + e.getMessage());
+            // Log server-side with the full cause; never surface it to the caller.
+            log.error("Gemini request failed", e);
+            throw new ChatUnavailableException();
         }
 
-        return "I'm sorry, I couldn't generate a response.";
+        return "I'm sorry, I couldn't generate a response. Please try rephrasing your question.";
+    }
+
+    /** Signals chat failure without carrying any upstream detail into the response body. */
+    public static class ChatUnavailableException extends RuntimeException {
+        public ChatUnavailableException() {
+            super("Chat is temporarily unavailable.");
+        }
     }
 
     @Data

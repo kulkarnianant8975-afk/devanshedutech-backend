@@ -64,13 +64,22 @@ server:
     session:
       cookie:
         secure: true
-        same-site: none
+        # 'lax' is correct now that the SPA and the API share one origin behind Caddy.
+        # It was 'none' only because the frontend (Vercel) and backend (Render) were
+        # cross-site; 'none' is increasingly blocked by browser privacy controls.
+        same-site: lax
         http-only: true
 
-# CORS Configuration
 app:
+  # CORS. The FIRST entry is also used as the post-login redirect target by
+  # OAuth2LoginSuccessHandler, so the canonical public origin must come first.
   cors:
-    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,https://devanshedutech.vercel.app}
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173}
+
+  # Administrators, comma-separated. Previously hardcoded in two Java classes; set
+  # ADMIN_EMAILS to grant or revoke admin without a code change and redeploy.
+  admin:
+    emails: ${ADMIN_EMAILS:kulkarnianant8975@gmail.com,dipaliatdevanshedutech@gmail.com}
 
 # Cloudinary CDN Configuration
 cloudinary:
