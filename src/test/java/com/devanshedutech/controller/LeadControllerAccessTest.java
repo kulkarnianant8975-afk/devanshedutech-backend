@@ -14,6 +14,7 @@ import com.devanshedutech.service.LeadLadderScheduler;
 import com.devanshedutech.service.LeadLadderService;
 import com.devanshedutech.service.LeadLifecycleService;
 import com.devanshedutech.service.NotificationService;
+import com.devanshedutech.controller.RateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,7 @@ class LeadControllerAccessTest {
         LeadLadderService ladder = mock(LeadLadderService.class);
         LeadLadderScheduler ladderScheduler = mock(LeadLadderScheduler.class);
         NotificationService notifications = mock(NotificationService.class);
+        RateLimiter rateLimiter = mock(RateLimiter.class);
         when(ladder.lane(any())).thenReturn(List.of());
         when(users.findAll()).thenReturn(List.of());
 
@@ -70,7 +72,7 @@ class LeadControllerAccessTest {
         User sneha = User.builder().id(SNEHA).email("sneha@x.com").displayName("Sneha").build();
         when(access.requireUser(any())).thenReturn(sneha);
 
-        controller = new LeadController(leads, capture, lifecycle, new LeadMapper(users), access, ladder, ladderScheduler, notifications);
+        controller = new LeadController(leads, capture, lifecycle, new LeadMapper(users), access, ladder, ladderScheduler, notifications, rateLimiter);
     }
 
     private Lead leadOwnedBy(String owner) {

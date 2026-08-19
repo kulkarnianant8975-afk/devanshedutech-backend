@@ -180,6 +180,15 @@ public class LeadDTOs {
         private Boolean reached;
     }
 
+    /** Retuning a ladder step. Any field left null is left alone. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class LadderStepRequest {
+        private Integer dayOffset;
+        private String title;
+        private String action;
+        private Boolean active;
+    }
+
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class PauseRequest {
         private LocalDate until;

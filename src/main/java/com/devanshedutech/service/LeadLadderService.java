@@ -246,6 +246,28 @@ public class LeadLadderService {
         return ladderRepository.findAllByOrderByGradeAscStepNoAsc();
     }
 
+    public LadderStep step(String id) {
+        return ladderRepository.findById(id).orElseThrow(() ->
+                new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "That step no longer exists."));
+    }
+
+    /**
+     * Saves a retuned step.
+     *
+     * <p>Deliberately does not renumber or reorder: a lane's step numbers are referenced by every
+     * lead currently sitting on it, and shuffling them would move students to a different point
+     * in their sequence without anybody asking for that. Only the timing and wording change.</p>
+     */
+    @Transactional
+    public LadderStep saveStep(LadderStep step, Actor actor) {
+        LadderStep saved = ladderRepository.save(step);
+        log.info("Ladder step {} of the {} lane retuned to day {} by {}",
+                saved.getStepNo(), saved.getGrade().getLabel(), saved.getDayOffset(),
+                actor == null ? "system" : actor.name());
+        return saved;
+    }
+
     // ==================================================================
     // Helpers
     // ==================================================================

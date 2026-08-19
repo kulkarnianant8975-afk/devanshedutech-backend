@@ -117,6 +117,9 @@ app:
       # Runs just after the follow-up pass, so the day's work is already decided.
       cron: ${NOTIFICATION_CRON:0 15 6 * * *}
       cleanup-cron: ${NOTIFICATION_CLEANUP_CRON:0 30 3 * * SUN}
+    capture:
+      # A student submits once; a college seminar on one office wifi is a legitimate burst.
+      rate-limit-per-minute: ${CAPTURE_RATE_LIMIT:6}
     metrics:
       # Below this many records a rate is noise, so it is withheld rather than printed.
       min-sample: ${METRICS_MIN_SAMPLE:5}

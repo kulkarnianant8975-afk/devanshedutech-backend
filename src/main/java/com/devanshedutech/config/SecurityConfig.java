@@ -73,6 +73,12 @@ public class SecurityConfig {
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
             .authorizeHttpRequests(auth -> auth
+                // Spring forwards to /error to render any error response, and that forward goes
+                // back through this filter chain. Without permitting it, an anonymous caller who
+                // triggers a 400 or a 429 gets a 401 instead — so a student mistyping their phone
+                // number on the public enquiry form was told they were not authenticated. The
+                // error body itself is produced by the application, not by this rule.
+                .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/auth/**").permitAll()

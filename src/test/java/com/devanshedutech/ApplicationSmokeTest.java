@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -106,6 +107,19 @@ class ApplicationSmokeTest {
                 .andExpect(jsonPath("$.duplicate").value(true));
 
         assertEquals(1, leads.findByPhoneNormalized("9800000001").size());
+    }
+
+    @Test
+    @DisplayName("the error page is reachable anonymously, or every public error becomes a 401")
+    void errorPageIsPermitted() throws Exception {
+        // Spring forwards to /error to render an error response, and that forward goes back
+        // through the security chain. When it was not permitted, a student mistyping their phone
+        // number on the public form was told they were not authenticated.
+        //
+        // Worth knowing: MockMvc does not perform that forward the way a servlet container does,
+        // so the test below passed while the real container returned 401. This asserts the rule
+        // itself rather than the symptom.
+        mvc.perform(get("/error")).andExpect(status().is(not(401)));
     }
 
     @Test
@@ -233,6 +247,27 @@ class ApplicationSmokeTest {
     @WithMockUser(username = "public@x.com", authorities = {"ROLE_NONE"})
     void boardRespectsPermissions() throws Exception {
         mvc.perform(get("/api/leads/board")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("the public enquiry form is rate limited, since it is open to the internet")
+    void enquiryFormIsRateLimited() throws Exception {
+        // A pipeline full of junk is not merely noise: counsellors work this queue by hand,
+        // so every fake enquiry costs somebody real time.
+        String body = """
+            {"fullName":"Flood Test","mobileNumber":"9700000001","cityName":"Parbhani"}
+            """;
+        int refused = 0;
+        for (int i = 0; i < 12; i++) {
+            // Its own forwarded address, so flooding here cannot exhaust the budget the other
+            // tests in this class share. Test order would otherwise decide whether they pass.
+            int status = mvc.perform(post("/api/leads")
+                            .header("X-Forwarded-For", "203.0.113.99")
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andReturn().getResponse().getStatus();
+            if (status == 429) refused++;
+        }
+        assertTrue(refused > 0, "a burst of submissions from one address should be refused");
     }
 
     private User newUser(String email, Role role) {

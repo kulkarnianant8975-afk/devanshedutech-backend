@@ -14,6 +14,8 @@ import com.devanshedutech.service.LeadLadderScheduler;
 import com.devanshedutech.service.LeadLadderService;
 import com.devanshedutech.service.LeadLifecycleService;
 import com.devanshedutech.service.NotificationService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import com.devanshedutech.service.LeadLifecycleService.Actor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -50,6 +52,7 @@ public class LeadController {
     private final LeadLadderService ladder;
     private final LeadLadderScheduler ladderScheduler;
     private final NotificationService notifications;
+    private final RateLimiter rateLimiter;
 
     public LeadController(LeadRepository leadRepository,
                           LeadCaptureService capture,
@@ -58,7 +61,8 @@ public class LeadController {
                           AccessService access,
                           LeadLadderService ladder,
                           LeadLadderScheduler ladderScheduler,
-                          NotificationService notifications) {
+                          NotificationService notifications,
+                          RateLimiter rateLimiter) {
         this.leadRepository = leadRepository;
         this.capture = capture;
         this.lifecycle = lifecycle;
@@ -67,6 +71,7 @@ public class LeadController {
         this.ladder = ladder;
         this.ladderScheduler = ladderScheduler;
         this.notifications = notifications;
+        this.rateLimiter = rateLimiter;
     }
 
     // ==================================================================
@@ -78,8 +83,24 @@ public class LeadController {
      * business — and deliberately forgiving about missing detail, because a rejected enquiry is
      * a lost student.
      */
+    /**
+     * Enquiries a single address may submit per minute. A real student submits once, but a
+     * college seminar where thirty people fill the form on one office wifi is a legitimate
+     * burst — hence configurable rather than baked in.
+     */
+    @Value("${app.crm.capture.rate-limit-per-minute:6}")
+    private int captureLimitPerMinute;
+
     @PostMapping
-    public ResponseEntity<CaptureResponse> createLead(@RequestBody LeadRequest request) {
+    public ResponseEntity<CaptureResponse> createLead(@RequestBody LeadRequest request,
+                                                      HttpServletRequest http) {
+        // The front door of the business, so it is deliberately open — and therefore the one
+        // endpoint worth limiting. A pipeline full of junk is not just noise: counsellors work
+        // this queue by hand, so every fake enquiry costs somebody real time.
+        if (rateLimiter.exceeded("lead-capture", rateLimiter.clientKey(http), captureLimitPerMinute)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many submissions. Please wait a moment and try again.");
+        }
         LeadCaptureService.Captured result = capture.capture(request, LeadSource.WEBSITE_FORM);
         Lead lead = result.lead();
         return ResponseEntity.status(result.duplicate() ? HttpStatus.OK : HttpStatus.CREATED)
@@ -373,6 +394,33 @@ public class LeadController {
     public ResponseEntity<List<LadderStepResponse>> ladderConfig() {
         return ResponseEntity.ok(ladder.allSteps().stream()
                 .map(s -> mapper.toResponse(s, null)).toList());
+    }
+
+    /**
+     * Retunes one step of a follow-up ladder.
+     *
+     * <p>These offsets are the numbers most worth adjusting once real conversion data arrives —
+     * the SOP's day 3 nudge may turn out to work better on day 2 here. Changing them is a
+     * settings change, not a deployment, which is why the ladders live in the database.</p>
+     */
+    @PatchMapping("/ladder/{id}")
+    @PreAuthorize("hasAuthority('PERM_SETTINGS_MANAGE')")
+    public ResponseEntity<LadderStepResponse> updateLadderStep(@PathVariable String id,
+                                                               @RequestBody LadderStepRequest request,
+                                                               Authentication auth) {
+        com.devanshedutech.model.LadderStep step = ladder.step(id);
+        if (request.getDayOffset() != null) {
+            if (request.getDayOffset() < 0 || request.getDayOffset() > 365) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "A step must fall between day 0 and day 365.");
+            }
+            step.setDayOffset(request.getDayOffset());
+        }
+        if (request.getTitle() != null && !request.getTitle().isBlank()) step.setTitle(request.getTitle().trim());
+        if (request.getAction() != null) step.setAction(request.getAction());
+        if (request.getActive() != null) step.setActive(request.getActive());
+
+        return ResponseEntity.ok(mapper.toResponse(ladder.saveStep(step, actor(auth)), null));
     }
 
     /**
