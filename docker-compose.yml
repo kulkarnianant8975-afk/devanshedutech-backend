@@ -29,15 +29,25 @@ services:
       - CRM_TIMEZONE=${CRM_TIMEZONE:-Asia/Kolkata}
       # Local staging is plain HTTP. Never do this on anything reachable from the internet.
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
-      # Optional features. Left empty they degrade rather than block startup.
+      # Optional features.
+      #
+      # Note the placeholder fallbacks rather than empty strings. Spring's OAuth2 client
+      # autoconfiguration rejects an EMPTY client id outright — "Client id must not be
+      # empty" — and an empty environment variable counts as set, so it overrides the
+      # default in application.yml and the application refuses to start. An unusable
+      # placeholder is fine: Google sign-in simply does not work until real credentials
+      # are supplied, and everything else runs.
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME:-}
-      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY:-}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET:-}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME:-your_cloud_name}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY:-your_api_key}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET:-your_api_secret}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-placeholder-id}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-placeholder-secret}
       # The follow-up pass changes lead grades on a schedule. Off by default locally.
       - LADDER_ENABLED=${LADDER_ENABLED:-false}
+      # Off by default. Turned on only long enough to create the first account on an empty
+      # database, since there is no administrator yet to create one for you.
+      - SELF_REGISTRATION_ENABLED=${SELF_REGISTRATION_ENABLED:-false}
     ports:
       - "8080:8080"
     depends_on:

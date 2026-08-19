@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -57,6 +58,14 @@ public class SecurityConfig {
             // serve no purpose there, and requiring one would break anonymous visitors.
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                // Spring Security 6 loads the CSRF token lazily: the XSRF-TOKEN cookie is only
+                // written if something actually reads the token during a request. Nothing here
+                // renders a server-side form, so the cookie was never issued at all — and axios
+                // only sends the X-XSRF-TOKEN header when that cookie exists. The result was that
+                // every write from the admin UI failed with 403 while login and the public forms
+                // kept working, because those are exempt below. Setting the request-attribute name
+                // to null opts out of the deferred loading and issues the cookie on every request.
+                .csrfTokenRequestHandler(eagerCsrfTokenHandler())
                 .ignoringRequestMatchers("/api/chat", "/api/leads", "/api/messages", "/api/auth/login", "/api/auth/register")
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
@@ -82,6 +91,17 @@ public class SecurityConfig {
             );
 
         return http.build();
+    }
+
+    /**
+     * Issues the CSRF token eagerly so the XSRF-TOKEN cookie is present before the client makes
+     * its first write. Uses the plain handler rather than the XOR one, because the value the
+     * client echoes back must match the cookie it was given.
+     */
+    private CsrfTokenRequestAttributeHandler eagerCsrfTokenHandler() {
+        CsrfTokenRequestAttributeHandler handler = new CsrfTokenRequestAttributeHandler();
+        handler.setCsrfRequestAttributeName(null);
+        return handler;
     }
 
     @Bean
