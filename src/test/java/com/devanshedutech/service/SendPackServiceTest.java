@@ -9,6 +9,7 @@ import com.devanshedutech.model.SendPack;
 import com.devanshedutech.repository.AssetRepository;
 import com.devanshedutech.repository.LeadActivityRepository;
 import com.devanshedutech.model.Course;
+import com.devanshedutech.repository.BatchRepository;
 import com.devanshedutech.repository.CourseRepository;
 import com.devanshedutech.repository.LeadRepository;
 import com.devanshedutech.repository.SendPackRepository;
@@ -39,6 +40,9 @@ class SendPackServiceTest {
         assets = mock(AssetRepository.class);
         leads = mock(LeadRepository.class);
         courses = mock(CourseRepository.class);
+        BatchRepository batches = mock(BatchRepository.class);
+        when(batches.findUpcomingForCourse(any(), any())).thenReturn(List.of());
+        when(batches.findUpcoming(any())).thenReturn(List.of());
         when(courses.findAll()).thenReturn(List.of(
                 Course.builder().id("c9").name("Gen AI").build()));
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
@@ -65,7 +69,7 @@ class SendPackServiceTest {
         WhatsAppSender sender = new WhatsAppSender(provider, new ManualWhatsAppChannel());
         org.springframework.test.util.ReflectionTestUtils.setField(sender, "publicBaseUrl", "");
 
-        service = new SendPackService(packs, assets, leads, courses,
+        service = new SendPackService(packs, assets, leads, courses, batches,
                 new LeadLifecycleService(leads, activities), sender);
     }
 

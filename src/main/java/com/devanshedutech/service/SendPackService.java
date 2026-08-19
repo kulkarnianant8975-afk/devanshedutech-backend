@@ -9,6 +9,7 @@ import com.devanshedutech.model.crm.ActivityType;
 import com.devanshedutech.model.crm.Direction;
 import com.devanshedutech.model.Course;
 import com.devanshedutech.repository.AssetRepository;
+import com.devanshedutech.repository.BatchRepository;
 import com.devanshedutech.repository.CourseRepository;
 import com.devanshedutech.repository.LeadRepository;
 import com.devanshedutech.repository.SendPackRepository;
@@ -47,6 +48,7 @@ public class SendPackService {
     private final AssetRepository assets;
     private final LeadRepository leads;
     private final CourseRepository courses;
+    private final BatchRepository batches;
     private final LeadLifecycleService lifecycle;
     private final WhatsAppSender whatsapp;
 
@@ -56,11 +58,13 @@ public class SendPackService {
 
     public SendPackService(SendPackRepository packs, AssetRepository assets,
                            LeadRepository leads, CourseRepository courses,
-                           LeadLifecycleService lifecycle, WhatsAppSender whatsapp) {
+                           BatchRepository batches, LeadLifecycleService lifecycle,
+                           WhatsAppSender whatsapp) {
         this.packs = packs;
         this.assets = assets;
         this.leads = leads;
         this.courses = courses;
+        this.batches = batches;
         this.lifecycle = lifecycle;
         this.whatsapp = whatsapp;
     }
@@ -179,7 +183,21 @@ public class SendPackService {
                 "course", lead.getCourseInterested() == null ? "the course" : lead.getCourseInterested(),
                 "course_id", resolveCourseId(lead),
                 "city", lead.getCityName() == null ? "Parbhani" : lead.getCityName(),
-                "counsellor", counsellorName == null ? "the team" : counsellorName);
+                "counsellor", counsellorName == null ? "the team" : counsellorName,
+                // The ladder's day-twelve and day-eighteen steps both quote a start date, so a
+                // pack has to be able to. When no intake is scheduled it says so rather than
+                // leaving a placeholder in a student's message.
+                "batch", nextBatchDescription(lead));
+    }
+
+    private String nextBatchDescription(Lead lead) {
+        java.time.LocalDate today = java.time.LocalDate.now();
+        String courseId = resolveCourseId(lead);
+        var forCourse = courseId.isBlank() ? java.util.List.<com.devanshedutech.model.Batch>of()
+                : batches.findUpcomingForCourse(courseId, today);
+        var chosen = !forCourse.isEmpty() ? forCourse.get(0)
+                : batches.findUpcoming(today).stream().findFirst().orElse(null);
+        return chosen == null ? "the next batch" : chosen.describe();
     }
 
     private String fill(String template, Map<String, String> vars) {

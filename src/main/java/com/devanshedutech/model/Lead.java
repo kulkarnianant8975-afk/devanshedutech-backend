@@ -183,6 +183,23 @@ public class Lead {
     @Column(name = "opted_out_at")
     private LocalDateTime optedOutAt;
 
+    // --- enrolment ---
+
+    /** The batch this student joined, once they enrol. */
+    @Column(name = "batch_id")
+    private String batchId;
+
+    /** What they agreed to pay, as a counsellor would write it: "45,000 in three instalments". */
+    @Column(name = "fee_plan")
+    private String feePlan;
+
+    /** PENDING, PART_PAID or PAID. Deliberately coarse: this is not an accounting system. */
+    @Column(name = "payment_status", length = 20)
+    private String paymentStatus;
+
+    @Column(name = "enrolled_at")
+    private LocalDateTime enrolledAt;
+
     /** The enrolled student who referred them, if any. */
     @Column(name = "referred_by_id")
     private String referredById;

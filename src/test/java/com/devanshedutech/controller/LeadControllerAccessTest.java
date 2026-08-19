@@ -7,6 +7,7 @@ import com.devanshedutech.model.Permission;
 import com.devanshedutech.model.User;
 import com.devanshedutech.model.crm.Stage;
 import com.devanshedutech.repository.LeadRepository;
+import com.devanshedutech.repository.BatchRepository;
 import com.devanshedutech.repository.UserRepository;
 import com.devanshedutech.security.AccessService;
 import com.devanshedutech.service.LeadCaptureService;
@@ -59,6 +60,7 @@ class LeadControllerAccessTest {
         auth = mock(Authentication.class);
         LeadCaptureService capture = mock(LeadCaptureService.class);
         UserRepository users = mock(UserRepository.class);
+        BatchRepository batchRepo = mock(BatchRepository.class);
         LeadLadderService ladder = mock(LeadLadderService.class);
         LeadLadderScheduler ladderScheduler = mock(LeadLadderScheduler.class);
         NotificationService notifications = mock(NotificationService.class);
@@ -72,7 +74,7 @@ class LeadControllerAccessTest {
         User sneha = User.builder().id(SNEHA).email("sneha@x.com").displayName("Sneha").build();
         when(access.requireUser(any())).thenReturn(sneha);
 
-        controller = new LeadController(leads, capture, lifecycle, new LeadMapper(users), access, ladder, ladderScheduler, notifications, rateLimiter);
+        controller = new LeadController(leads, capture, lifecycle, new LeadMapper(users, batchRepo), access, ladder, ladderScheduler, notifications, rateLimiter);
     }
 
     private Lead leadOwnedBy(String owner) {

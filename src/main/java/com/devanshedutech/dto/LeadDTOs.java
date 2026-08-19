@@ -65,6 +65,11 @@ public class LeadDTOs {
         private String nextTouchNote;
         private String notes;
         private String courseInterested;
+        private String batchId;
+        private String batchName;
+        private String feePlan;
+        private String paymentStatus;
+
         private LostReason lostReason;
         private String lostNote;
         /** Why the change was made, recorded on the timeline. */
@@ -147,6 +152,11 @@ public class LeadDTOs {
         private LocalDate ladderPausedUntil;
         private String ladderPauseReason;
         private String ladderCurrentTitle;
+
+        private String batchId;
+        private String batchName;
+        private String feePlan;
+        private String paymentStatus;
 
         private LostReason lostReason;
         private String lostNote;

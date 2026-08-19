@@ -6,6 +6,7 @@ import com.devanshedutech.dto.LeadDTOs.LeadResponse;
 import com.devanshedutech.model.Lead;
 import com.devanshedutech.model.LeadActivity;
 import com.devanshedutech.model.LadderStep;
+import com.devanshedutech.repository.BatchRepository;
 import com.devanshedutech.model.User;
 import com.devanshedutech.repository.UserRepository;
 import org.springframework.stereotype.Component;
@@ -29,9 +30,11 @@ import java.util.stream.Collectors;
 public class LeadMapper {
 
     private final UserRepository userRepository;
+    private final BatchRepository batchRepository;
 
-    public LeadMapper(UserRepository userRepository) {
+    public LeadMapper(UserRepository userRepository, BatchRepository batchRepository) {
         this.userRepository = userRepository;
+        this.batchRepository = batchRepository;
     }
 
     /**
@@ -101,6 +104,11 @@ public class LeadMapper {
                 .ladderPausedUntil(l.getLadderPausedUntil())
                 .ladderPauseReason(l.getLadderPauseReason())
                 .lostUnworked(l.getLostUnworked())
+                .batchId(l.getBatchId())
+                .batchName(l.getBatchId() == null ? null
+                        : batchRepository.findById(l.getBatchId()).map(b -> b.describe()).orElse(null))
+                .feePlan(l.getFeePlan())
+                .paymentStatus(l.getPaymentStatus())
                 .lostReason(l.getLostReason())
                 .lostNote(l.getLostNote())
                 .updatesOnly(l.getUpdatesOnly())
