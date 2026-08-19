@@ -45,6 +45,11 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-placeholder-secret}
       # The follow-up pass changes lead grades on a schedule. Off by default locally.
       - LADDER_ENABLED=${LADDER_ENABLED:-false}
+      # Empty means the swipe hands off to the counsellor's own WhatsApp; set it and the
+      # message goes to the student directly.
+      - AISENSY_API_KEY=${AISENSY_API_KEY:-}
+      - AISENSY_CAMPAIGN=${AISENSY_CAMPAIGN:-crm_message}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
       # Off by default. Turned on only long enough to create the first account on an empty
       # database, since there is no administrator yet to create one for you.
       - SELF_REGISTRATION_ENABLED=${SELF_REGISTRATION_ENABLED:-false}

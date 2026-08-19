@@ -1,5 +1,8 @@
 package com.devanshedutech.service;
 
+import com.devanshedutech.channel.AiSensyChannel;
+import com.devanshedutech.channel.ManualWhatsAppChannel;
+import com.devanshedutech.channel.WhatsAppSender;
 import com.devanshedutech.model.Asset;
 import com.devanshedutech.model.Lead;
 import com.devanshedutech.model.SendPack;
@@ -55,7 +58,15 @@ class SendPackServiceTest {
                 .id("a2").key("demo_link").name("Book your free demo").type("LINK")
                 .url("/contact").tracked(true).active(true).build()));
 
-        service = new SendPackService(packs, assets, leads, courses, new LeadLifecycleService(leads, activities));
+        // No API key, so the manual hand-off is active — the same path an institute runs on
+        // before connecting a provider.
+        AiSensyChannel provider = new AiSensyChannel(new org.springframework.boot.web.client.RestTemplateBuilder());
+        org.springframework.test.util.ReflectionTestUtils.setField(provider, "apiKey", "");
+        WhatsAppSender sender = new WhatsAppSender(provider, new ManualWhatsAppChannel());
+        org.springframework.test.util.ReflectionTestUtils.setField(sender, "publicBaseUrl", "");
+
+        service = new SendPackService(packs, assets, leads, courses,
+                new LeadLifecycleService(leads, activities), sender);
     }
 
     private Lead lead(LocalDateTime lastInbound) {

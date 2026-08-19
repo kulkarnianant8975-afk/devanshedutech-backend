@@ -2,6 +2,7 @@ package com.devanshedutech.controller;
 
 import com.devanshedutech.crm.LeadMapper;
 import com.devanshedutech.dto.LeadDTOs.LeadResponse;
+import com.devanshedutech.dto.LeadDTOs.SendPackRequest;
 import com.devanshedutech.dto.LeadDTOs.SentPackRequest;
 import com.devanshedutech.model.Lead;
 import com.devanshedutech.model.User;
@@ -60,6 +61,27 @@ public class SendPackController {
                                                             Authentication auth) {
         Lead lead = writable(id, auth);
         return ResponseEntity.ok(packs.prepare(lead, packKey, actor(auth).name()));
+    }
+
+    /**
+     * Sends the pack.
+     *
+     * <p>With a provider configured this delivers to the student directly. Without one it
+     * returns a hand-off link and nothing is recorded until the counsellor confirms — because
+     * writing "sent" on a timeline for a message that may never have left is worse than
+     * recording nothing.</p>
+     */
+    @PostMapping("/{id}/packs/{packKey}/send")
+    @PreAuthorize("hasAuthority('PERM_LEAD_EDIT')")
+    public ResponseEntity<SendPackService.SendOutcome> send(@PathVariable String id,
+                                                            @PathVariable String packKey,
+                                                            @RequestBody(required = false) SendPackRequest request,
+                                                            Authentication auth) {
+        Lead lead = writable(id, auth);
+        return ResponseEntity.ok(packs.send(lead, packKey,
+                request == null ? null : request.getMessage(),
+                request == null ? List.of() : request.getAssets(),
+                actor(auth)));
     }
 
     /**

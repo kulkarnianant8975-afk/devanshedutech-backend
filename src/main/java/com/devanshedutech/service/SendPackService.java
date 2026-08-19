@@ -1,5 +1,7 @@
 package com.devanshedutech.service;
 
+import com.devanshedutech.channel.WhatsAppChannel;
+import com.devanshedutech.channel.WhatsAppSender;
 import com.devanshedutech.model.Asset;
 import com.devanshedutech.model.Lead;
 import com.devanshedutech.model.SendPack;
@@ -46,6 +48,7 @@ public class SendPackService {
     private final LeadRepository leads;
     private final CourseRepository courses;
     private final LeadLifecycleService lifecycle;
+    private final WhatsAppSender whatsapp;
 
     /** The institute's WhatsApp number, digits only, used to build the deep link. */
     @Value("${app.crm.whatsapp.number:}")
@@ -53,12 +56,13 @@ public class SendPackService {
 
     public SendPackService(SendPackRepository packs, AssetRepository assets,
                            LeadRepository leads, CourseRepository courses,
-                           LeadLifecycleService lifecycle) {
+                           LeadLifecycleService lifecycle, WhatsAppSender whatsapp) {
         this.packs = packs;
         this.assets = assets;
         this.leads = leads;
         this.courses = courses;
         this.lifecycle = lifecycle;
+        this.whatsapp = whatsapp;
     }
 
     /** One asset, resolved for a particular lead. */
@@ -68,7 +72,12 @@ public class SendPackService {
     /** Everything the client needs to show and send a pack. */
     public record Prepared(String packKey, String packName, String situation, String message,
                            List<ResolvedAsset> assets, Long replyWindowMinutesLeft,
-                           boolean freeReplyOpen, String whatsappUrl, String note) {}
+                           boolean freeReplyOpen, String whatsappUrl, String note,
+                           boolean sendsAutomatically, String channel) {}
+
+    /** What happened when a pack was sent. */
+    public record SendOutcome(boolean sent, String status, String detail,
+                              String handoffUrl, String channel) {}
 
     public List<SendPack> all() {
         return packs.findAllByOrderByNameAsc().stream().filter(SendPack::isActive).toList();
@@ -117,12 +126,16 @@ public class SendPackService {
             });
         }
 
+        boolean auto = whatsapp.sendsAutomatically();
+        String note = open
+                ? resolved.size() + " attachment(s) plus the message"
+                  + (auto ? ", sent straight to the student." : ", sent from your own WhatsApp.")
+                : "This student has not messaged in over 24 hours, so WhatsApp only allows an "
+                  + "approved template until they reply. The opener goes now; the rest follows "
+                  + "once they answer.";
+
         return new Prepared(pack.getKey(), pack.getName(), pack.getSituation(), message, resolved,
-                windowLeft, open, whatsappUrl(lead, message),
-                open
-                    ? resolved.size() + " attachment(s) plus the message, sent one at a time from your own WhatsApp."
-                    : "This student has not messaged in over 24 hours, so WhatsApp only allows an "
-                      + "approved template until they reply. Send the opener, and the rest follows once they answer.");
+                windowLeft, open, whatsappUrl(lead, message), note, auto, whatsapp.active().name());
     }
 
     /**
@@ -176,6 +189,50 @@ public class SendPackService {
             out = out.replace("{{" + e.getKey() + "}}", e.getValue());
         }
         return out;
+    }
+
+    /**
+     * Sends a pack to the student.
+     *
+     * <p>The message the counsellor edited is what goes, not the stored template. Whether it
+     * leaves automatically or opens in their WhatsApp depends on whether a provider is
+     * configured, and either way the timeline records only what actually happened: a provider
+     * that accepted it is "sent", a hand-off is not recorded until the counsellor confirms.</p>
+     */
+    @Transactional
+    public SendOutcome send(Lead lead, String packKey, String editedMessage,
+                            List<String> includedAssets, Actor actor) {
+        SendPack pack = byKey(packKey);
+        String message = editedMessage == null || editedMessage.isBlank()
+                ? prepare(lead, packKey, actor == null ? null : actor.name()).message()
+                : editedMessage;
+
+        Prepared prepared = prepare(lead, packKey, actor == null ? null : actor.name());
+        List<WhatsAppChannel.Attachment> attachments = prepared.assets().stream()
+                .filter(a -> includedAssets == null || includedAssets.isEmpty()
+                          || includedAssets.contains(a.key()))
+                .map(a -> new WhatsAppChannel.Attachment(a.name(), a.type(), a.url()))
+                .toList();
+
+        // Normalised first. A stored number is whatever the student typed — "+91 98765 43210"
+        // — and a wa.me link containing a space or a plus is simply broken.
+        WhatsAppChannel.SendResult result = whatsapp.send(
+                Lead.normalizePhone(lead.getMobileNumber()), lead.getFullName(), message, attachments);
+
+        if (result.sent()) {
+            recordSent(lead, packKey, attachments.stream()
+                    .map(WhatsAppChannel.Attachment::name).toList(), actor);
+        } else if (result.handoffUrl() == null) {
+            // A genuine failure is written down too. A message that did not go and left no
+            // trace is how a lead ends up looking contacted when nobody contacted them.
+            var entry = lifecycle.log(lead, ActivityType.WHATSAPP, null, Direction.OUTBOUND,
+                    "Send failed: " + pack.getName(), result.detail(), actor);
+            entry.setPackKey(packKey);
+            entry.setDeliveryStatus("failed");
+        }
+
+        return new SendOutcome(result.sent(), result.status(), result.detail(),
+                result.handoffUrl(), whatsapp.active().name());
     }
 
     /**

@@ -87,6 +87,13 @@ public class LeadDTOs {
         private String detail;
     }
 
+    /** The message as the counsellor edited it, and which attachments to include. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class SendPackRequest {
+        private String message;
+        private List<String> assets;
+    }
+
     /** Which attachments the counsellor actually included. */
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class SentPackRequest {

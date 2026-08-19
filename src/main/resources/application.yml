@@ -117,10 +117,20 @@ app:
       # Runs just after the follow-up pass, so the day's work is already decided.
       cron: ${NOTIFICATION_CRON:0 15 6 * * *}
       cleanup-cron: ${NOTIFICATION_CLEANUP_CRON:0 30 3 * * SUN}
+    # The address WhatsApp will fetch attachments from. Media is pulled by WhatsApp's own
+    # servers, so a relative path or localhost is accepted by the API and then never arrives.
+    public-base-url: ${PUBLIC_BASE_URL:}
+
     whatsapp:
-      # The institute's number, digits only with country code. Used to build the deep link that
-      # opens a message ready to send; sending stays manual until a provider is connected.
+      # The institute's number, digits only with country code.
       number: ${WHATSAPP_NUMBER:917972217407}
+      aisensy:
+        # Set this and the swipe sends to the student directly. Leave it empty and the message
+        # opens in the counsellor's own WhatsApp instead, so the product works either way.
+        api-key: ${AISENSY_API_KEY:}
+        url: ${AISENSY_URL:https://backend.aisensy.com/campaign/t1/api/v2}
+        # The approved template used when the 24-hour free-reply window has closed.
+        campaign: ${AISENSY_CAMPAIGN:crm_message}
     capture:
       # A student submits once; a college seminar on one office wifi is a legitimate burst.
       rate-limit-per-minute: ${CAPTURE_RATE_LIMIT:6}
