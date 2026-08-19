@@ -74,7 +74,8 @@ class LeadControllerAccessTest {
         User sneha = User.builder().id(SNEHA).email("sneha@x.com").displayName("Sneha").build();
         when(access.requireUser(any())).thenReturn(sneha);
 
-        controller = new LeadController(leads, capture, lifecycle, new LeadMapper(users, batchRepo), access, ladder, ladderScheduler, notifications, rateLimiter);
+        controller = new LeadController(leads, capture, lifecycle, new LeadMapper(users, batchRepo), access, ladder, ladderScheduler, notifications, rateLimiter,
+                mock(com.devanshedutech.service.AssetTrackingService.class));
     }
 
     private Lead leadOwnedBy(String owner) {

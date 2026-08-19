@@ -51,6 +51,7 @@ public class SendPackService {
     private final BatchRepository batches;
     private final LeadLifecycleService lifecycle;
     private final WhatsAppSender whatsapp;
+    private final AssetTrackingService tracking;
 
     /** The institute's WhatsApp number, digits only, used to build the deep link. */
     @Value("${app.crm.whatsapp.number:}")
@@ -59,7 +60,7 @@ public class SendPackService {
     public SendPackService(SendPackRepository packs, AssetRepository assets,
                            LeadRepository leads, CourseRepository courses,
                            BatchRepository batches, LeadLifecycleService lifecycle,
-                           WhatsAppSender whatsapp) {
+                           WhatsAppSender whatsapp, AssetTrackingService tracking) {
         this.packs = packs;
         this.assets = assets;
         this.leads = leads;
@@ -67,6 +68,7 @@ public class SendPackService {
         this.batches = batches;
         this.lifecycle = lifecycle;
         this.whatsapp = whatsapp;
+        this.tracking = tracking;
     }
 
     /** One asset, resolved for a particular lead. */
@@ -138,8 +140,13 @@ public class SendPackService {
                     url = "/api/public/brochure/download";
                     log.debug("Lead has no matched course; using the general brochure for asset {}", key);
                 }
-                resolved.add(new ResolvedAsset(a.getKey(), fill(a.getName(), vars), a.getType(),
-                        url, a.getSizeLabel(), a.isTracked()));
+                String name = fill(a.getName(), vars);
+                // Tracked assets go out as this lead's own link, so opening one is recorded
+                // against them. Untrackable ones fall back to the plain URL rather than
+                // sending a student a link that does not work.
+                String sent = tracking.trackedUrl(lead, a.getKey(), name, url, a.isTracked());
+                resolved.add(new ResolvedAsset(a.getKey(), name, a.getType(),
+                        sent, a.getSizeLabel(), a.isTracked()));
             });
         }
 

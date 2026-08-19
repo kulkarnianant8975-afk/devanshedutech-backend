@@ -69,8 +69,16 @@ class SendPackServiceTest {
         WhatsAppSender sender = new WhatsAppSender(provider, new ManualWhatsAppChannel());
         org.springframework.test.util.ReflectionTestUtils.setField(sender, "publicBaseUrl", "");
 
+        // No public base URL, so tracked assets fall back to their plain URLs. These tests are
+        // about what a pack contains; tracking has its own suite.
+        AssetTrackingService tracking = new AssetTrackingService(
+                mock(com.devanshedutech.repository.AssetLinkRepository.class), leads,
+                new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()));
+        org.springframework.test.util.ReflectionTestUtils.setField(tracking, "publicBaseUrl", "");
+
         service = new SendPackService(packs, assets, leads, courses, batches,
-                new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()), sender);
+                new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()), sender,
+                tracking);
     }
 
     private Lead lead(LocalDateTime lastInbound) {

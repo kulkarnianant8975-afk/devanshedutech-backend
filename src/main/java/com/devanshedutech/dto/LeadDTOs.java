@@ -187,6 +187,23 @@ public class LeadDTOs {
         private List<ActivityResponse> activities;
         /** The lead's whole lane, so a counsellor can see what is coming, not just what is due. */
         private List<LadderStepResponse> ladder;
+        /** What this student has actually opened. Empty until something tracked is sent. */
+        private List<AssetOpenResponse> opens;
+    }
+
+    /**
+     * How often a student came back to something that was sent to them.
+     *
+     * <p>Repeated opens are the strongest signal available without asking: someone reading the
+     * fee sheet three times is deciding, and a counsellor could not previously know that.</p>
+     */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class AssetOpenResponse {
+        private String assetKey;
+        private String assetName;
+        private Integer opens;
+        private java.time.LocalDateTime firstOpenedAt;
+        private java.time.LocalDateTime lastOpenedAt;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

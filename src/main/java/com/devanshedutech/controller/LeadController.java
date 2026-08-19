@@ -9,6 +9,7 @@ import com.devanshedutech.model.User;
 import com.devanshedutech.model.crm.*;
 import com.devanshedutech.repository.LeadRepository;
 import com.devanshedutech.security.AccessService;
+import com.devanshedutech.service.AssetTrackingService;
 import com.devanshedutech.service.LeadCaptureService;
 import com.devanshedutech.service.LeadLadderScheduler;
 import com.devanshedutech.service.LeadLadderService;
@@ -53,6 +54,7 @@ public class LeadController {
     private final LeadLadderScheduler ladderScheduler;
     private final NotificationService notifications;
     private final RateLimiter rateLimiter;
+    private final AssetTrackingService tracking;
 
     public LeadController(LeadRepository leadRepository,
                           LeadCaptureService capture,
@@ -62,7 +64,8 @@ public class LeadController {
                           LeadLadderService ladder,
                           LeadLadderScheduler ladderScheduler,
                           NotificationService notifications,
-                          RateLimiter rateLimiter) {
+                          RateLimiter rateLimiter,
+                          AssetTrackingService tracking) {
         this.leadRepository = leadRepository;
         this.capture = capture;
         this.lifecycle = lifecycle;
@@ -72,6 +75,7 @@ public class LeadController {
         this.ladderScheduler = ladderScheduler;
         this.notifications = notifications;
         this.rateLimiter = rateLimiter;
+        this.tracking = tracking;
     }
 
     // ==================================================================
@@ -172,6 +176,15 @@ public class LeadController {
                 .lead(body)
                 .activities(lifecycle.timeline(id).stream().map(mapper::toResponse).toList())
                 .ladder(lane.stream().map(s -> mapper.toResponse(s, lead.getLadderStep())).toList())
+                .opens(tracking.forLead(id).stream()
+                        .map(l -> com.devanshedutech.dto.LeadDTOs.AssetOpenResponse.builder()
+                                .assetKey(l.getAssetKey())
+                                .assetName(l.getAssetName())
+                                .opens(l.opens())
+                                .firstOpenedAt(l.getFirstOpenedAt())
+                                .lastOpenedAt(l.getLastOpenedAt())
+                                .build())
+                        .toList())
                 .build());
     }
 
