@@ -300,6 +300,20 @@ class ApplicationSmokeTest {
                 .andExpect(status().isCreated());
     }
 
+    @Test
+    @DisplayName("a refusal explains itself, because a message nobody reads is not an error message")
+    void refusalsCarryTheirReason() throws Exception {
+        // Spring's default error body drops the reason, so every deliberate message in this
+        // application — "marking a lead lost needs a reason", "that batch has already started" —
+        // reached the browser as nothing but "Bad Request".
+        mvc.perform(post("/api/leads")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Test\",\"mobileNumber\":\"12\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("10-digit")));
+    }
+
     private User newUser(String email, Role role) {
         User u = users.findByEmailIgnoreCase(email).orElseGet(() -> User.builder()
                 .id(UUID.randomUUID().toString()).email(email).displayName(email).active(true).build());

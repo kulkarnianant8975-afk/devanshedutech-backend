@@ -83,8 +83,21 @@ public class SendPackService {
     public record SendOutcome(boolean sent, String status, String detail,
                               String handoffUrl, String channel) {}
 
+    /** Every placeholder a template may use, so the editor can list them rather than guess. */
+    public static final Map<String, String> PLACEHOLDERS = Map.of(
+            "first_name", "The student's first name only",
+            "full_name", "Their full name",
+            "course", "The course they asked about",
+            "city", "Their city or area",
+            "counsellor", "The counsellor sending it",
+            "batch", "The next scheduled intake, described in full");
+
     public List<SendPack> all() {
         return packs.findAllByOrderByNameAsc().stream().filter(SendPack::isActive).toList();
+    }
+
+    public List<Asset> allAssets() {
+        return assets.findAll().stream().filter(Asset::isActive).toList();
     }
 
     public SendPack byKey(String key) {
@@ -207,6 +220,60 @@ public class SendPackService {
             out = out.replace("{{" + e.getKey() + "}}", e.getValue());
         }
         return out;
+    }
+
+    /**
+     * Edits a pack.
+     *
+     * <p>These messages go to students, so the wording is worth changing without a deployment —
+     * a phrase that works in Parbhani may not be the one written here. The placeholder syntax is
+     * validated on save: an unknown one would otherwise reach a student as literal braces in the
+     * middle of a sentence.</p>
+     */
+    @Transactional
+    public SendPack update(String key, String name, String situation, String coverTemplate,
+                           List<String> assetKeys, Boolean active) {
+        SendPack pack = byKey(key);
+
+        if (coverTemplate != null && !coverTemplate.isBlank()) {
+            List<String> unknown = unknownPlaceholders(coverTemplate);
+            if (!unknown.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "This message uses a placeholder that does not exist: "
+                        + String.join(", ", unknown)
+                        + ". A student would receive it as literal text. Available: "
+                        + String.join(", ", PLACEHOLDERS.keySet()));
+            }
+            pack.setCoverTemplate(coverTemplate.trim());
+        }
+        if (name != null && !name.isBlank()) pack.setName(name.trim());
+        if (situation != null) pack.setSituation(situation);
+        if (active != null) pack.setActive(active);
+
+        if (assetKeys != null) {
+            List<String> missing = assetKeys.stream()
+                    .filter(k -> assets.findByKey(k).isEmpty()).toList();
+            if (!missing.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No such attachment: " + String.join(", ", missing));
+            }
+            pack.setAssetKeys(String.join(",", assetKeys));
+        }
+
+        log.info("Message pack '{}' edited", pack.getName());
+        return packs.save(pack);
+    }
+
+    /** Placeholders in a template that nothing will ever fill in. */
+    List<String> unknownPlaceholders(String template) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("\\{\\{\\s*([a-z_]+)\\s*\\}\\}").matcher(template);
+        List<String> unknown = new ArrayList<>();
+        while (m.find()) {
+            String name = m.group(1);
+            if (!PLACEHOLDERS.containsKey(name) && !unknown.contains(name)) unknown.add(name);
+        }
+        return unknown;
     }
 
     /**

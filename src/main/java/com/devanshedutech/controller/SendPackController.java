@@ -53,6 +53,37 @@ public class SendPackController {
                 "situation", p.getSituation() == null ? "" : p.getSituation())).toList());
     }
 
+    /** Every pack with its full text, for the editor. */
+    @GetMapping("/packs/full")
+    @PreAuthorize("hasAuthority('PERM_SETTINGS_MANAGE')")
+    public ResponseEntity<Map<String, Object>> full() {
+        return ResponseEntity.ok(Map.of(
+                "packs", packs.all().stream().map(p -> Map.<String, Object>of(
+                        "key", p.getKey(),
+                        "name", p.getName(),
+                        "situation", p.getSituation() == null ? "" : p.getSituation(),
+                        "coverTemplate", p.getCoverTemplate(),
+                        "assetKeys", p.assets(),
+                        "active", p.isActive())).toList(),
+                "assets", packs.allAssets().stream().map(a -> Map.<String, Object>of(
+                        "key", a.getKey(), "name", a.getName(),
+                        "type", a.getType(), "sizeLabel", a.getSizeLabel() == null ? "" : a.getSizeLabel())).toList(),
+                "placeholders", SendPackService.PLACEHOLDERS));
+    }
+
+    @PatchMapping("/packs/{packKey}")
+    @PreAuthorize("hasAuthority('PERM_SETTINGS_MANAGE')")
+    public ResponseEntity<Map<String, Object>> update(@PathVariable String packKey,
+                                                      @RequestBody UpdatePackRequest request) {
+        var pack = packs.update(packKey, request.getName(), request.getSituation(),
+                request.getCoverTemplate(), request.getAssetKeys(), request.getActive());
+        return ResponseEntity.ok(Map.of(
+                "key", pack.getKey(), "name", pack.getName(),
+                "situation", pack.getSituation() == null ? "" : pack.getSituation(),
+                "coverTemplate", pack.getCoverTemplate(),
+                "assetKeys", pack.assets(), "active", pack.isActive()));
+    }
+
     /** A pack filled in for one student, with the reply-window state that decides what may be sent. */
     @GetMapping("/{id}/packs/{packKey}")
     @PreAuthorize("hasAuthority('PERM_LEAD_EDIT')")
@@ -99,6 +130,15 @@ public class SendPackController {
         Lead lead = writable(id, auth);
         return ResponseEntity.ok(mapper.toResponse(packs.recordSent(
                 lead, packKey, request == null ? List.of() : request.getAssets(), actor(auth))));
+    }
+
+    @lombok.Data @lombok.Builder @lombok.NoArgsConstructor @lombok.AllArgsConstructor
+    public static class UpdatePackRequest {
+        private String name;
+        private String situation;
+        private String coverTemplate;
+        private List<String> assetKeys;
+        private Boolean active;
     }
 
     private Actor actor(Authentication auth) {

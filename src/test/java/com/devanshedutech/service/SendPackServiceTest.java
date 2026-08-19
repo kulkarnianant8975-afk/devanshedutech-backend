@@ -181,6 +181,59 @@ class SendPackServiceTest {
     }
 
     @Test
+    @DisplayName("a template using a placeholder nothing can fill is refused")
+    void unknownPlaceholdersAreRefused() {
+        // Left in, a student receives literal braces in the middle of a sentence — the sort of
+        // thing nobody notices until it has gone to two hundred people.
+        when(packs.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var e = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service.update("guidance", null, null,
+                        "Hi {{first_name}}, your {{discount_code}} is ready", null, null));
+
+        assertEquals(400, e.getStatusCode().value());
+        assertTrue(e.getReason().contains("discount_code"));
+        assertTrue(e.getReason().contains("first_name"), "the message should list what is available");
+    }
+
+    @Test
+    @DisplayName("every placeholder the editor offers is one the sender actually fills in")
+    void advertisedPlaceholdersAreReal() {
+        // The editor lists these to a person writing a message. Advertising one that is never
+        // substituted would be worse than not offering it at all.
+        Lead l = lead(LocalDateTime.now().minusHours(1));
+        String everyOne = SendPackService.PLACEHOLDERS.keySet().stream()
+                .map(k -> "{{" + k + "}}").reduce("", (a, b) -> a + " " + b);
+
+        when(packs.findByKey("all")).thenReturn(Optional.of(
+                com.devanshedutech.model.SendPack.builder()
+                        .id("p2").key("all").name("All").active(true)
+                        .coverTemplate(everyOne).assetKeys("").build()));
+
+        assertFalse(service.prepare(l, "all", "Aditya").message().contains("{{"),
+                "a placeholder the editor offers must never survive into a student's message");
+    }
+
+    @Test
+    @DisplayName("a valid edit saves, including the attachment list")
+    void validEditIsAccepted() {
+        when(packs.save(any())).thenAnswer(i -> i.getArgument(0));
+        var updated = service.update("guidance", "New name", "New situation",
+                "Hi {{first_name}}, the {{batch}} starts soon.", List.of("syllabus"), true);
+
+        assertEquals("New name", updated.getName());
+        assertEquals(List.of("syllabus"), updated.assets());
+    }
+
+    @Test
+    @DisplayName("an attachment that does not exist is refused rather than silently dropped")
+    void unknownAttachmentIsRefused() {
+        var e = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service.update("guidance", null, null, null, List.of("no_such_file"), null));
+        assertEquals(400, e.getStatusCode().value());
+    }
+
+    @Test
     @DisplayName("an unknown pack is refused rather than sending an empty message")
     void unknownPackIsRefused() {
         when(packs.findByKey(anyString())).thenReturn(Optional.empty());
