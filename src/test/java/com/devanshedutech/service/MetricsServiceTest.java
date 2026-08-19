@@ -55,7 +55,13 @@ class MetricsServiceTest {
         when(leads.countEnrolledGroupedBySource()).thenReturn(List.of());
         when(leads.countByCreatedAtBetween(any(), any())).thenReturn(0L);
 
-        metrics = new MetricsService(leads, activities, users);
+        // Plain elapsed minutes, matching how BusinessCalendar behaves with no hours configured.
+        BusinessCalendar calendar = mock(BusinessCalendar.class);
+        when(calendar.workingMinutesBetween(any(), any())).thenAnswer(i -> {
+            java.time.LocalDateTime a = i.getArgument(0), b = i.getArgument(1);
+            return a == null || b == null ? 0L : java.time.Duration.between(a, b).toMinutes();
+        });
+        metrics = new MetricsService(leads, activities, users, calendar);
         ReflectionTestUtils.setField(metrics, "minSample", 5);
     }
 

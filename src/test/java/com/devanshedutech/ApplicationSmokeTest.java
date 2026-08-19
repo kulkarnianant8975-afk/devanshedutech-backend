@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -169,6 +170,46 @@ class ApplicationSmokeTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"outcome\":\"CONNECTED\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("a counsellor can read the roster but not rewrite it")
+    @WithMockUser(username = "priya@x.com", authorities = {"ROLE_SALES_EXECUTIVE", "PERM_LEAD_VIEW_OWN"})
+    void counsellorReadsScheduleButCannotChangeIt() throws Exception {
+        // Everyone working leads needs to see the hours and who is covering them; changing the
+        // institute's opening times or moving someone else's shift is a different decision.
+        mvc.perform(get("/api/schedule/hours")).andExpect(status().isOk());
+        mvc.perform(get("/api/schedule/roster")).andExpect(status().isOk());
+        mvc.perform(get("/api/schedule/on-duty")).andExpect(status().isOk());
+
+        mvc.perform(put("/api/schedule/hours")
+                        .with(org.springframework.security.test.web.servlet.request
+                                .SecurityMockMvcRequestPostProcessors.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"day\":\"SUNDAY\",\"opensAt\":\"10:00\",\"closesAt\":\"19:00\",\"closed\":false}]"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/schedule/roster")
+                        .with(org.springframework.security.test.web.servlet.request
+                                .SecurityMockMvcRequestPostProcessors.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"x\",\"day\":\"MONDAY\",\"startsAt\":\"10:00\",\"endsAt\":\"14:00\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("a day cannot be set to close before it opens")
+    @WithMockUser(username = "admin@x.com", authorities = {"ROLE_ADMIN", "PERM_SETTINGS_MANAGE"})
+    void backwardsHoursAreRefusedWithAReason() throws Exception {
+        // Left through, every duration on that day would compute as zero and the response-time
+        // metric would look excellent for no reason at all.
+        mvc.perform(put("/api/schedule/hours")
+                        .with(org.springframework.security.test.web.servlet.request
+                                .SecurityMockMvcRequestPostProcessors.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"day\":\"MONDAY\",\"opensAt\":\"19:00\",\"closesAt\":\"10:00\",\"closed\":false}]"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("closes at or before it opens")));
     }
 
     @Test

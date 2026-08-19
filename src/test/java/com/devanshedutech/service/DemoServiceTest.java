@@ -43,7 +43,7 @@ class DemoServiceTest {
         when(demos.save(any())).thenAnswer(i -> i.getArgument(0));
         when(leads.save(any())).thenAnswer(i -> i.getArgument(0));
         when(activities.save(any())).thenAnswer(i -> i.getArgument(0));
-        service = new DemoService(demos, leads, new LeadLifecycleService(leads, activities));
+        service = new DemoService(demos, leads, new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()));
         sneha = new LeadLifecycleService.Actor("u1", "Sneha Kulkarni");
     }
 

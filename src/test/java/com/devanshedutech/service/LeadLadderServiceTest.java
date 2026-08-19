@@ -53,7 +53,7 @@ class LeadLadderServiceTest {
         when(steps.findByGradeOrderByStepNoAsc(Grade.COLD)).thenReturn(lane(Grade.COLD, 0, 14, 30, 45, 60, 75, 90));
 
         ladder = new LeadLadderService(leads, activities, steps,
-                new LeadLifecycleService(leads, activities));
+                new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()));
         ReflectionTestUtils.setField(ladder, "graceDays", GRACE);
         ReflectionTestUtils.setField(ladder, "replyFreezeHours", 48);
         ReflectionTestUtils.setField(ladder, "workedThreshold", 3);

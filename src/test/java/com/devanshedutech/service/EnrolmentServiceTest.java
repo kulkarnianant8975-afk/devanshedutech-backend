@@ -41,7 +41,7 @@ class EnrolmentServiceTest {
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
         when(leads.save(any())).thenAnswer(i -> i.getArgument(0));
         when(activities.save(any())).thenAnswer(i -> i.getArgument(0));
-        service = new EnrolmentService(leads, batches, new LeadLifecycleService(leads, activities));
+        service = new EnrolmentService(leads, batches, new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()));
         sneha = new LeadLifecycleService.Actor("u1", "Sneha");
     }
 

@@ -47,13 +47,16 @@ public class MetricsService {
     private final LeadRepository leadRepository;
     private final LeadActivityRepository activityRepository;
     private final UserRepository userRepository;
+    private final BusinessCalendar calendar;
 
     public MetricsService(LeadRepository leadRepository,
                           LeadActivityRepository activityRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          BusinessCalendar calendar) {
         this.leadRepository = leadRepository;
         this.activityRepository = activityRepository;
         this.userRepository = userRepository;
+        this.calendar = calendar;
     }
 
     /** Everything the manager dashboard needs, in one pass over the aggregates. */
@@ -100,7 +103,9 @@ public class MetricsService {
         List<Object[]> responses = leadRepository.firstResponseTimestampsSince(since);
         List<Long> minutes = responses.stream()
                 .filter(r -> r[0] != null && r[1] != null)
-                .map(r -> Duration.between((LocalDateTime) r[0], (LocalDateTime) r[1]).toMinutes())
+                // Working minutes, not wall-clock. See BusinessCalendar: the old figure mostly
+                // measured what time of day students fill in forms.
+                .map(r -> calendar.workingMinutesBetween((LocalDateTime) r[0], (LocalDateTime) r[1]))
                 .filter(m -> m >= 0)
                 .toList();
         Double avgResponse = minutes.isEmpty() ? null
@@ -109,8 +114,9 @@ public class MetricsService {
                 .key("first_response").label("First response time")
                 .value(enough(minutes.size()) ? avgResponse : null)
                 .unit("min").target("Under 5 minutes")
-                .explanation("How long a student waits for a human reply. The institute that "
-                        + "replies first usually controls the conversation.")
+                .explanation("How long a student waits for a human reply, counting only opening "
+                        + "hours. The institute that replies first usually controls the "
+                        + "conversation.")
                 .healthy(avgResponse == null ? null : avgResponse <= SLA_MINUTES)
                 .sampleSize(minutes.size())
                 .build());

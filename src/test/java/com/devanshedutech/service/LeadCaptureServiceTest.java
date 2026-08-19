@@ -34,7 +34,11 @@ class LeadCaptureServiceTest {
         when(leads.save(any())).thenAnswer(i -> i.getArgument(0));
         when(activities.save(any())).thenAnswer(i -> i.getArgument(0));
         when(leads.findByPhoneNormalized(anyString())).thenReturn(List.of());
-        capture = new LeadCaptureService(leads, new LeadLifecycleService(leads, activities));
+        // A roster that never has anyone on duty, so these tests keep asserting capture itself.
+        // Assignment has its own test; mixing the two would hide which one broke.
+        DutyRosterService roster = mock(DutyRosterService.class);
+        when(roster.assignIfUnowned(any(), any())).thenReturn(false);
+        capture = new LeadCaptureService(leads, new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()), roster);
     }
 
     private LeadRequest request() {

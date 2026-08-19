@@ -70,7 +70,7 @@ class SendPackServiceTest {
         org.springframework.test.util.ReflectionTestUtils.setField(sender, "publicBaseUrl", "");
 
         service = new SendPackService(packs, assets, leads, courses, batches,
-                new LeadLifecycleService(leads, activities), sender);
+                new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()), sender);
     }
 
     private Lead lead(LocalDateTime lastInbound) {

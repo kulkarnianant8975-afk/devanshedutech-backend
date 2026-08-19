@@ -42,10 +42,13 @@ public class LeadCaptureService {
 
     private final LeadRepository leadRepository;
     private final LeadLifecycleService lifecycle;
+    private final DutyRosterService roster;
 
-    public LeadCaptureService(LeadRepository leadRepository, LeadLifecycleService lifecycle) {
+    public LeadCaptureService(LeadRepository leadRepository, LeadLifecycleService lifecycle,
+                              DutyRosterService roster) {
         this.leadRepository = leadRepository;
         this.lifecycle = lifecycle;
+        this.roster = roster;
     }
 
     /** Outcome of a capture, so the caller knows whether a duplicate was merged. */
@@ -97,13 +100,18 @@ public class LeadCaptureService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
+        // Give it an owner now if someone is on duty. An enquiry belonging to nobody waits until
+        // a counsellor happens to look at the list, and that wait is what loses students.
+        boolean assigned = roster.assignIfUnowned(lead, LocalDateTime.now());
+
         Lead saved = leadRepository.save(lead);
 
         lifecycle.log(saved, ActivityType.CAPTURE, null, Direction.INBOUND, "Lead captured",
                 "Arrived via " + source.getLabel()
                         + (lead.getSourceDetail() == null ? "" : " (" + lead.getSourceDetail() + ")")
                         + (lead.getUtmCampaign() == null ? "" : ", campaign " + lead.getUtmCampaign())
-                        + ". Not yet graded or assigned.",
+                        + (assigned ? ". Assigned to whoever was on duty. Not yet graded."
+                                    : ". Nobody was on duty, so it is unassigned and needs picking up."),
                 LeadLifecycleService.Actor.system());
 
         return new Captured(saved, false);

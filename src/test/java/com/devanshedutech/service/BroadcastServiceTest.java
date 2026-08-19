@@ -44,7 +44,7 @@ class BroadcastServiceTest {
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
         when(activities.save(any())).thenAnswer(i -> i.getArgument(0));
         return new BroadcastService(broadcasts, leads,
-                new LeadLifecycleService(leads, activities), sender);
+                new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay()), sender);
     }
 
     @BeforeEach

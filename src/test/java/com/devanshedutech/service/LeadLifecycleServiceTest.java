@@ -39,7 +39,7 @@ class LeadLifecycleServiceTest {
         activities = mock(LeadActivityRepository.class);
         when(leads.save(any())).thenAnswer(i -> i.getArgument(0));
         when(activities.save(any())).thenAnswer(i -> i.getArgument(0));
-        service = new LeadLifecycleService(leads, activities);
+        service = new LeadLifecycleService(leads, activities, TestCalendars.openEveryDay());
         sneha = new LeadLifecycleService.Actor("u1", "Sneha Kulkarni");
     }
 
@@ -245,5 +245,36 @@ class LeadLifecycleServiceTest {
         assertFalse(l.getUpdatesOnly());
         assertNull(l.getNextTouchOn());
         assertFalse(l.isActive());
+    }
+
+    @Test
+    @DisplayName("a follow-up that counts onto a Sunday is booked for the Monday instead")
+    void followUpsAvoidClosedDays() {
+        // The SOP counts plain days, so about one follow-up in seven lands on a closed day.
+        // Booking it there produces an overdue row on Monday morning for a call nobody could
+        // have made, and a due date that is routinely wrong stops being read at all.
+        com.devanshedutech.repository.WorkingHoursRepository hours =
+                mock(com.devanshedutech.repository.WorkingHoursRepository.class);
+        com.devanshedutech.repository.HolidayRepository holidays =
+                mock(com.devanshedutech.repository.HolidayRepository.class);
+        java.util.List<com.devanshedutech.model.WorkingHours> week = new java.util.ArrayList<>();
+        for (java.time.DayOfWeek d : java.time.DayOfWeek.values()) {
+            week.add(com.devanshedutech.model.WorkingHours.builder().day(d)
+                    .opensAt(java.time.LocalTime.of(10, 0))
+                    .closesAt(java.time.LocalTime.of(19, 0))
+                    .closed(d == java.time.DayOfWeek.SUNDAY).build());
+        }
+        when(hours.findAll()).thenReturn(week);
+        when(holidays.findByDayBetweenOrderByDayAsc(any(), any())).thenReturn(java.util.List.of());
+
+        LeadLifecycleService closedSundays =
+                new LeadLifecycleService(leads, activities, new BusinessCalendar(hours, holidays));
+
+        Lead lead = Lead.builder().id("l1").fullName("Rohit").build();
+        java.time.LocalDate sunday = java.time.LocalDate.of(2026, 7, 26);
+        assertEquals(java.time.DayOfWeek.SUNDAY, sunday.getDayOfWeek());
+
+        closedSundays.setNextTouch(lead, sunday, "Call about the batch");
+        assertEquals(sunday.plusDays(1), lead.getNextTouchOn());
     }
 }

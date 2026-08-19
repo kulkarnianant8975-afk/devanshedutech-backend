@@ -49,10 +49,14 @@ public class LeadLifecycleService {
     private final LeadRepository leadRepository;
     private final LeadActivityRepository activityRepository;
 
+    private final BusinessCalendar calendar;
+
     public LeadLifecycleService(LeadRepository leadRepository,
-                                LeadActivityRepository activityRepository) {
+                                LeadActivityRepository activityRepository,
+                                BusinessCalendar calendar) {
         this.leadRepository = leadRepository;
         this.activityRepository = activityRepository;
+        this.calendar = calendar;
     }
 
     /** Who performed an action, for the audit trail. */
@@ -260,8 +264,15 @@ public class LeadLifecycleService {
     }
 
     /** Sets the date the SOP refuses to leave blank. */
+    /**
+     * Books the next touch, moved forward off any day the institute is shut.
+     *
+     * <p>The SOP counts plain days, so roughly one follow-up in seven lands on a Sunday or a
+     * festival. Left alone it becomes an overdue row on the next working morning, and a due
+     * date that is routinely wrong stops being read.</p>
+     */
     public void setNextTouch(Lead lead, LocalDate when, String note) {
-        lead.setNextTouchOn(when);
+        lead.setNextTouchOn(calendar.nextWorkingDay(when));
         lead.setNextTouchNote(note);
     }
 
