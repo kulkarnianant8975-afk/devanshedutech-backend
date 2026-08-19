@@ -99,6 +99,15 @@ app:
   viewer:
     emails: ${VIEWER_EMAILS:}
 
+  # Who this institute is. The chatbot speaks to prospective students as the institute, so
+  # anything wrong here is wrong in front of them — it had been telling everyone the institute
+  # was in Pune.
+  institute:
+    name: ${INSTITUTE_NAME:Devansh Edu-Tech Classes}
+    city: ${INSTITUTE_CITY:Parbhani}
+    state: ${INSTITUTE_STATE:Maharashtra}
+    phone: ${INSTITUTE_PHONE:+91 8669880738}
+
   crm:
     # Every follow-up rule is a date rather than an instant, so the whole application resolves
     # "today" in the institute's zone rather than the server's.

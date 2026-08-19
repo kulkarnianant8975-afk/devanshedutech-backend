@@ -26,14 +26,17 @@ public class ChatController {
     private static final int MAX_HISTORY_TURNS = 20;
 
     private final ChatService chatService;
+    private final com.devanshedutech.service.ChatLeadCapture leadCapture;
 
     private final Cache<String, AtomicInteger> requestCounts = Caffeine.newBuilder()
             .expireAfterWrite(WINDOW)
             .maximumSize(10_000)
             .build();
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService,
+                          com.devanshedutech.service.ChatLeadCapture leadCapture) {
         this.chatService = chatService;
+        this.leadCapture = leadCapture;
     }
 
     @PostMapping("/chat")
@@ -56,6 +59,16 @@ public class ChatController {
             history = history.subList(history.size() - MAX_HISTORY_TURNS, history.size());
         }
 
+        // A number left in the chat becomes a lead. Done before the model call so a student
+        // who gives their number and then closes the tab is still reachable, and wrapped
+        // separately because a capture failure must never cost them their answer.
+        try {
+            leadCapture.capture(message, userMessagesIn(history))
+                    .ifPresent(lead -> log.info("Chatbot captured lead {}", lead.getId()));
+        } catch (Exception e) {
+            log.warn("Could not capture a lead from the chat: {}", e.getMessage());
+        }
+
         try {
             String botResponse = chatService.getAiResponse(message, history);
             return ResponseEntity.ok(Map.of("text", botResponse));
@@ -66,6 +79,23 @@ public class ChatController {
             return ResponseEntity.status(503)
                     .body(Map.of("error", "Chat is temporarily unavailable. Please try again shortly."));
         }
+    }
+
+    /** What the student themselves has said, so the note on the lead is their words, not the bot's. */
+    @SuppressWarnings("unchecked")
+    private List<String> userMessagesIn(List<Map<String, Object>> history) {
+        if (history == null) return List.of();
+        List<String> said = new java.util.ArrayList<>();
+        for (Map<String, Object> turn : history) {
+            if (!"user".equals(turn.get("role"))) continue;
+            Object parts = turn.get("parts");
+            if (parts instanceof List<?> list && !list.isEmpty()
+                    && list.get(0) instanceof Map<?, ?> part) {
+                Object text = ((Map<String, Object>) part).get("text");
+                if (text instanceof String t && !t.isBlank()) said.add(t);
+            }
+        }
+        return said;
     }
 
     private boolean isRateLimited(String ip) {
