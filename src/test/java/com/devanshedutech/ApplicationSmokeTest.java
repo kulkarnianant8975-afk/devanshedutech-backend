@@ -270,6 +270,36 @@ class ApplicationSmokeTest {
         assertTrue(refused > 0, "a burst of submissions from one address should be refused");
     }
 
+    @Test
+    @DisplayName("a contact-form enquiry becomes a lead, not just an inbox entry")
+    void contactFormEntersThePipeline() throws Exception {
+        // This was a live leak: messages were saved to their own inbox and never reached the
+        // pipeline, so nobody was assigned and no follow-up was scheduled.
+        mvc.perform(post("/api/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"fullName":"Priya Kale","email":"p@x.com","mobile":"9765000011",
+                             "message":"Do you have weekend batches for Data Analytics?"}
+                            """))
+                .andExpect(status().isCreated());
+
+        var captured = leads.findByPhoneNormalized("9765000011");
+        assertEquals(1, captured.size(), "the enquiry should now be in the pipeline");
+        assertEquals(Stage.NEW, captured.get(0).getStage());
+        assertTrue(captured.get(0).getNotes().contains("weekend batches"),
+                "what they actually asked is the most useful thing a counsellor can read");
+    }
+
+    @Test
+    @DisplayName("a contact message with no usable number stays a message, and still saves")
+    void contactWithoutPhoneStillSucceeds() throws Exception {
+        // A lead nobody can call is not a lead. Refusing the submission would lose the enquiry.
+        mvc.perform(post("/api/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"No Phone\",\"email\":\"n@x.com\",\"message\":\"Hello\"}"))
+                .andExpect(status().isCreated());
+    }
+
     private User newUser(String email, Role role) {
         User u = users.findByEmailIgnoreCase(email).orElseGet(() -> User.builder()
                 .id(UUID.randomUUID().toString()).email(email).displayName(email).active(true).build());

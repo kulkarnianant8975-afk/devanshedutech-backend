@@ -18,6 +18,7 @@ public enum LeadSource {
     WALK_IN("Walk-in"),
     GOOGLE_SEARCH("Google search"),
     WEBSITE_FORM("Website form"),
+    CONTACT_FORM("Contact form"),
     WEBSITE_CHATBOT("Website chatbot"),
     PHONE_CALL("Phone call"),
     OTHER("Other");

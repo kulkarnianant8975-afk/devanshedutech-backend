@@ -94,6 +94,33 @@ public final class LeadSpecifications {
         };
     }
 
+    /**
+     * Leads who may receive an announcement.
+     *
+     * <p>Opting out is absolute: a student who asked to stop is excluded from every segment,
+     * with no way to select them back in. That is both the decent thing and the practical one —
+     * messaging people who asked you not to is what destroys a WhatsApp number's standing.</p>
+     */
+    public static Specification<Lead> broadcastable() {
+        return (root, q, cb) -> cb.and(
+                cb.or(cb.isNull(root.get("optedOut")), cb.isFalse(root.get("optedOut"))),
+                cb.isNotNull(root.get("phoneNormalized")));
+    }
+
+    /** Cold leads: no counsellor time, announcements only, per SOP section 3. */
+    public static Specification<Lead> cold() {
+        return (root, q, cb) -> cb.equal(root.get("grade"), Grade.COLD);
+    }
+
+    /** Day-21 wrap-ups and closed leads kept for the next intake. */
+    public static Specification<Lead> updatesOnly() {
+        return (root, q, cb) -> cb.isTrue(root.get("updatesOnly"));
+    }
+
+    public static Specification<Lead> stageIn(List<Stage> stages) {
+        return (root, q, cb) -> root.get("stage").in(stages);
+    }
+
     /** Chains the filters that apply, ignoring the nulls. */
     @SafeVarargs
     public static Specification<Lead> all(Specification<Lead>... specs) {
