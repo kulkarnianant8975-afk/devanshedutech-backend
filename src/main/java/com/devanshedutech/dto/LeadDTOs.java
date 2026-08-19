@@ -199,6 +199,23 @@ public class LeadDTOs {
         private long blankNextTouchCount;
     }
 
+    /** One column of the pipeline board. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class BoardColumn {
+        private Stage stage;
+        private String label;
+        /** Every lead at this stage, up to the cap. */
+        private List<LeadResponse> leads;
+        /** How many are really there, so a truncated column says so rather than lying. */
+        private long total;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class BoardResponse {
+        private List<BoardColumn> columns;
+        private int columnLimit;
+    }
+
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class PageResponse<T> {
         private List<T> items;

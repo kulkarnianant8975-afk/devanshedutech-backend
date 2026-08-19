@@ -216,6 +216,25 @@ class ApplicationSmokeTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    @DisplayName("the board returns every stage as a column, even the empty ones")
+    @WithMockUser(username = "manager@x.com", authorities = {"ROLE_MANAGER", "PERM_LEAD_VIEW_ALL"})
+    void boardHasAColumnPerStage() throws Exception {
+        // An empty stage must still appear, or the board would silently lose a column the first
+        // time an institute had nobody at that stage.
+        mvc.perform(get("/api/leads/board"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.columns.length()").value(Stage.values().length))
+                .andExpect(jsonPath("$.columns[0].stage").value("NEW"));
+    }
+
+    @Test
+    @DisplayName("a counsellor can open the board; a signed-in account with no role cannot")
+    @WithMockUser(username = "public@x.com", authorities = {"ROLE_NONE"})
+    void boardRespectsPermissions() throws Exception {
+        mvc.perform(get("/api/leads/board")).andExpect(status().isForbidden());
+    }
+
     private User newUser(String email, Role role) {
         User u = users.findByEmailIgnoreCase(email).orElseGet(() -> User.builder()
                 .id(UUID.randomUUID().toString()).email(email).displayName(email).active(true).build());

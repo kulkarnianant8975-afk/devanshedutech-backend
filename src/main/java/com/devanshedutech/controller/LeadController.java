@@ -180,6 +180,45 @@ public class LeadController {
                 .build());
     }
 
+    /**
+     * The pipeline board: every stage with its leads, in one request.
+     *
+     * <p>Each column is capped and reports its true total, so a busy stage shows "showing 50 of
+     * 214" rather than quietly leaving leads out. Loading a board by calling the list endpoint
+     * once per stage would be seven round trips and seven chances to disagree with itself.</p>
+     */
+    @GetMapping("/board")
+    @PreAuthorize("hasAnyAuthority('PERM_LEAD_VIEW_ALL','PERM_LEAD_VIEW_OWN')")
+    public ResponseEntity<BoardResponse> board(
+            Authentication auth,
+            @RequestParam(required = false) String owner,
+            @RequestParam(required = false) Grade grade,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "50") int limit) {
+
+        String scope = resolveOwnerScope(auth, owner);
+        int capped = Math.min(Math.max(limit, 1), 200);
+        var names = mapper.ownerNames();
+
+        List<BoardColumn> columns = Arrays.stream(Stage.values()).map(stage -> {
+            Specification<Lead> spec = LeadSpecifications.all(
+                    LeadSpecifications.ownedBy(scope),
+                    LeadSpecifications.stageIs(stage),
+                    LeadSpecifications.gradeIs(grade),
+                    LeadSpecifications.matching(q));
+            Page<Lead> page = leadRepository.findAll(spec,
+                    PageRequest.of(0, capped, Sort.by(Sort.Direction.ASC, "nextTouchOn")));
+            return BoardColumn.builder()
+                    .stage(stage)
+                    .label(stage.getLabel())
+                    .leads(page.getContent().stream().map(l -> mapper.toResponse(l, names)).toList())
+                    .total(page.getTotalElements())
+                    .build();
+        }).toList();
+
+        return ResponseEntity.ok(new BoardResponse(columns, capped));
+    }
+
     /** The vocabularies, so the client never hardcodes a list that can drift from the server. */
     @GetMapping("/options")
     @PreAuthorize("hasAnyAuthority('PERM_LEAD_VIEW_ALL','PERM_LEAD_VIEW_OWN')")
