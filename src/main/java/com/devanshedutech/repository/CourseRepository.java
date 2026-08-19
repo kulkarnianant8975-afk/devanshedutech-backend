@@ -4,4 +4,8 @@ import com.devanshedutech.model.Course;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CourseRepository extends JpaRepository<Course, String> {
+
+    java.util.Optional<Course> findBySlug(String slug);
+
+    boolean existsBySlug(String slug);
 }

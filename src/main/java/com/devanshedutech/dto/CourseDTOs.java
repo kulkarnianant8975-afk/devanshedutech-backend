@@ -27,5 +27,7 @@ public class CourseDTOs {
         private String level;
         private String category;
         private String image;
+        /** The course's name in a URL, so an ad can link straight to its page. */
+        private String slug;
     }
 }

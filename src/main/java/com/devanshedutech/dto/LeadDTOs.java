@@ -129,6 +129,16 @@ public class LeadDTOs {
         private LeadSource source;
         private String sourceLabel;
         private String sourceDetail;
+        /**
+         * Which advertisement actually produced this student.
+         *
+         * <p>Captured since attribution was added but never shown, so a counsellor opening a
+         * lead could see it came from the website and not which campaign paid for it — which
+         * is the half that decides where the next month's budget goes.</p>
+         */
+        private String utmSource;
+        private String utmMedium;
+        private String utmCampaign;
         private StudentBackground background;
         private String backgroundLabel;
 

@@ -21,8 +21,11 @@ import java.util.stream.Collectors;
 public class CourseController {
 
     private final CourseRepository courseRepository;
+    private final com.devanshedutech.service.CourseSlugs slugs;
 
-    public CourseController(CourseRepository courseRepository) {
+    public CourseController(CourseRepository courseRepository,
+                            com.devanshedutech.service.CourseSlugs slugs) {
+        this.slugs = slugs;
         this.courseRepository = courseRepository;
     }
 
@@ -54,6 +57,7 @@ public class CourseController {
                 .category(request.getCategory())
                 .image(request.getImage())
                 .build();
+        course.setSlug(slugs.assign(course));
         Course saved = courseRepository.save(course);
         return ResponseEntity.status(HttpStatus.CREATED).body(mapToResponse(saved));
     }
@@ -70,6 +74,11 @@ public class CourseController {
             course.setLevel(request.getLevel());
             course.setCategory(request.getCategory());
             course.setImage(request.getImage());
+            // Deliberately not reassigned on rename. A link inside a running advertisement must
+            // not break because somebody fixed a typo in the title.
+            if (course.getSlug() == null || course.getSlug().isBlank()) {
+                course.setSlug(slugs.assign(course));
+            }
             Course updated = courseRepository.save(course);
             return ResponseEntity.ok(mapToResponse(updated));
         }).orElse(ResponseEntity.notFound().build());
@@ -84,6 +93,20 @@ public class CourseController {
         }
         courseRepository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * One course by its URL name, for its landing page.
+     *
+     * <p>Falls back to looking the value up as an id, so a link built before slugs existed keeps
+     * working rather than 404ing at someone who clicked an advertisement.</p>
+     */
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<CourseResponse> getBySlug(@PathVariable String slug) {
+        return courseRepository.findBySlug(slug)
+                .or(() -> courseRepository.findById(slug))
+                .map(course -> ResponseEntity.ok(mapToResponse(course)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{id}/image")
@@ -122,6 +145,7 @@ public class CourseController {
                 .level(course.getLevel())
                 .category(course.getCategory())
                 .image(url)
+                .slug(course.getSlug())
                 .build();
     }
 }
