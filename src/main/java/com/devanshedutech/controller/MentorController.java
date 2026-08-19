@@ -22,20 +22,20 @@ public class MentorController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public MentorDTOs.MentorResponse createMentor(@RequestBody MentorDTOs.MentorRequest request) {
         return mentorService.createMentor(request);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public MentorDTOs.MentorResponse updateMentor(@PathVariable String id, @RequestBody MentorDTOs.MentorRequest request) {
         return mentorService.updateMentor(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public void deleteMentor(@PathVariable String id) {
         mentorService.deleteMentor(id);
     }

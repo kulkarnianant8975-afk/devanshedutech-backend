@@ -39,3 +39,5 @@ uploads/
 
 maven-settings.xml
 
+
+.env

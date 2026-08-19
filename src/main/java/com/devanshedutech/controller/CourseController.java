@@ -41,7 +41,7 @@ public class CourseController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     @CacheEvict(value = "courses", allEntries = true)
     public ResponseEntity<CourseResponse> createCourse(@RequestBody CourseRequest request) {
         Course course = Course.builder()
@@ -59,7 +59,7 @@ public class CourseController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     @CacheEvict(value = "courses", allEntries = true)
     public ResponseEntity<CourseResponse> updateCourse(@PathVariable String id, @RequestBody CourseRequest request) {
         return courseRepository.findById(id).map(course -> {
@@ -76,7 +76,7 @@ public class CourseController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     @CacheEvict(value = "courses", allEntries = true)
     public ResponseEntity<Void> deleteCourse(@PathVariable String id) {
         if (!courseRepository.existsById(id)) {

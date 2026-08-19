@@ -1,12 +1,16 @@
-version: '3.8'
-
+# Local development only. Production runs behind Caddy and is configured through the host's
+# environment, not this file. Copy .env.example to .env and fill it in before starting.
 services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: devanshedutech
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: devanshedutech
+      POSTGRES_USER: ${DATABASE_USERNAME:-devanshedutech}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env}
+      POSTGRES_DB: ${DATABASE_NAME:-devanshedutech}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-devanshedutech}"]
+      interval: 5s
+      retries: 10
     ports:
       - "5432:5432"
     volumes:
@@ -16,13 +20,27 @@ services:
     build: .
     restart: always
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/devanshedutech
-      - SPRING_DATASOURCE_USERNAME=devanshedutech
-      - SPRING_DATASOURCE_PASSWORD=password
+      # The application reads DATABASE_* rather than SPRING_DATASOURCE_*; see application.yml.
+      - DATABASE_URL=jdbc:postgresql://db:5432/${DATABASE_NAME:-devanshedutech}
+      - DATABASE_USERNAME=${DATABASE_USERNAME:-devanshedutech}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173}
+      - SUPER_ADMIN_EMAILS=${SUPER_ADMIN_EMAILS:-}
+      - CRM_TIMEZONE=${CRM_TIMEZONE:-Asia/Kolkata}
+      # Optional features. Left empty they degrade rather than block startup.
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME:-}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY:-}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      # The follow-up pass changes lead grades on a schedule. Off by default locally.
+      - LADDER_ENABLED=${LADDER_ENABLED:-false}
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   nginx:
     image: nginx:stable-alpine

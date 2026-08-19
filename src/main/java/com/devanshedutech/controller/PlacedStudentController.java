@@ -22,20 +22,20 @@ public class PlacedStudentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public PlacedStudentDTOs.PlacedStudentResponse createPlacedStudent(@RequestBody PlacedStudentDTOs.PlacedStudentRequest request) {
         return placedStudentService.createPlacedStudent(request);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public PlacedStudentDTOs.PlacedStudentResponse updatePlacedStudent(@PathVariable String id, @RequestBody PlacedStudentDTOs.PlacedStudentRequest request) {
         return placedStudentService.updatePlacedStudent(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public void deletePlacedStudent(@PathVariable String id) {
         placedStudentService.deletePlacedStudent(id);
     }

@@ -33,7 +33,7 @@ public class HiringController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public ResponseEntity<HiringResponse> createHiringPost(@RequestBody HiringRequest request) {
         Hiring hiring = Hiring.builder()
                 .id(UUID.randomUUID().toString())
@@ -51,7 +51,7 @@ public class HiringController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public ResponseEntity<HiringResponse> updateHiringPost(@PathVariable String id, @RequestBody HiringRequest request) {
         return hiringRepository.findById(id).map(hiring -> {
             hiring.setTitle(request.getTitle());
@@ -68,7 +68,7 @@ public class HiringController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public ResponseEntity<Void> deleteHiringPost(@PathVariable String id) {
         if (!hiringRepository.existsById(id)) {
             return ResponseEntity.notFound().build();

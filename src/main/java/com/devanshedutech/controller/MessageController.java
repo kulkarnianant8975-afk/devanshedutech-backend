@@ -25,7 +25,7 @@ public class MessageController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_LEAD_VIEW_ALL')")
     public ResponseEntity<List<MessageResponse>> getAllMessages() {
         return ResponseEntity.ok(
                 messageRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"))

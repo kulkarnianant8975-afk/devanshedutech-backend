@@ -1,0 +1,59 @@
+name: Backend CI
+
+# Runs the whole test suite on every push and pull request. The tests use an in-memory
+# database, so nothing here touches a real environment or needs a secret.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      - name: Run tests
+        run: mvn -B verify
+
+      - name: Publish test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+      - name: Build the production jar
+        run: mvn -B package -DskipTests
+
+      # Guards the failure that unit tests cannot see: a config placeholder with no default
+      # stops the application booting, and it does so only on the target environment. The
+      # database credentials are legitimately required; anything else appearing here is a
+      # feature that has quietly become mandatory.
+      - name: Check for newly required configuration
+        run: |
+          REQUIRED=$(grep -oE '\$\{[A-Z_]+\}' src/main/resources/application.yml | tr -d '${}' | sort -u)
+          EXPECTED="DATABASE_PASSWORD
+          DATABASE_URL
+          DATABASE_USERNAME"
+          UNEXPECTED=$(comm -23 <(echo "$REQUIRED") <(echo "$EXPECTED" | sed 's/^ *//' | sort))
+          if [ -n "$UNEXPECTED" ]; then
+            echo "These settings have no default, so the application will not start without them:"
+            echo "$UNEXPECTED"
+            echo ""
+            echo "Give optional features a default (e.g. \${SOME_KEY:}) or add them to the"
+            echo "deployment runbook and to EXPECTED in this workflow."
+            exit 1
+          fi
+          echo "Only the database credentials are required. Good."

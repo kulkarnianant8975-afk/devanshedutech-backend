@@ -29,7 +29,7 @@ public class ImageUploadController {
     private final CloudinaryService cloudinaryService;
 
     @PostMapping("/image")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_CONTENT_MANAGE')")
     public ResponseEntity<?> uploadImage(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "folder", defaultValue = "general") String folder) {

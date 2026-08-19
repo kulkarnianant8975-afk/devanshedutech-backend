@@ -48,7 +48,7 @@ public class SettingsController {
     }
 
     @PostMapping("/settings/brochure/upload")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_SETTINGS_MANAGE')")
     @Transactional  // FIX: must be on the public method, not on saveFile() (same-class call bypasses proxy)
     public ResponseEntity<?> uploadBrochureFile(@RequestParam("file") MultipartFile file) {
         return saveFile("GLOBAL_BROCHURE", file);
@@ -73,7 +73,7 @@ public class SettingsController {
     }
 
     @PostMapping("/settings/brochure/upload/{courseId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_SETTINGS_MANAGE')")
     @Transactional  // FIX: must be on the public method, not on saveFile() (same-class call bypasses proxy)
     public ResponseEntity<?> uploadCourseBrochureFile(@PathVariable String courseId, @RequestParam("file") MultipartFile file) {
         return saveFile("COURSE_BROCHURE_" + courseId, file);

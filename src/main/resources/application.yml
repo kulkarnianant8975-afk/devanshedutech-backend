@@ -17,7 +17,10 @@ spring:
       max-lifetime: 1800000
 
   gemini:
-    api-key: ${GEMINI_API_KEY}
+    # Empty rather than required. The website chatbot is an optional feature and already
+    # degrades cleanly when the key is missing — but a placeholder with no default fails
+    # placeholder resolution at startup, so the whole application refused to boot without it.
+    api-key: ${GEMINI_API_KEY:}
 
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
@@ -76,10 +79,41 @@ app:
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173}
 
-  # Administrators, comma-separated. Previously hardcoded in two Java classes; set
-  # ADMIN_EMAILS to grant or revoke admin without a code change and redeploy.
+  # Roles pinned by configuration, comma-separated. A pinned address always resolves to that
+  # role regardless of what is stored on the user row, which is the bootstrap path: an owner
+  # listed here gets access on their first Google sign-in, before any account exists to grant
+  # it to them. Day-to-day role changes are made in the Team screen and stored on the user.
+  # Previously ADMIN_EMAILS was hardcoded in two Java classes that could silently disagree.
+  super-admin:
+    emails: ${SUPER_ADMIN_EMAILS:}
   admin:
     emails: ${ADMIN_EMAILS:kulkarnianant8975@gmail.com,dipaliatdevanshedutech@gmail.com}
+  manager:
+    emails: ${MANAGER_EMAILS:}
+  counsellor:
+    emails: ${COUNSELLOR_EMAILS:}
+  viewer:
+    emails: ${VIEWER_EMAILS:}
+
+  crm:
+    # Every follow-up rule is a date rather than an instant, so the whole application resolves
+    # "today" in the institute's zone rather than the server's.
+    timezone: ${CRM_TIMEZONE:Asia/Kolkata}
+    ladder:
+      enabled: ${LADDER_ENABLED:true}
+      # Runs before the institute opens, so the day's work is laid out on arrival.
+      cron: ${LADDER_CRON:0 0 6 * * *}
+      # Slack after the final step before a lead decays a grade.
+      grace-days: ${LADDER_GRACE_DAYS:3}
+      # A reply this recent freezes decay — never demote somebody who just spoke to you.
+      reply-freeze-hours: ${LADDER_REPLY_FREEZE_HOURS:48}
+      # Below this many real touches, a closed lead is flagged as never actually worked.
+      worked-threshold: ${LADDER_WORKED_THRESHOLD:3}
+
+  auth:
+    # Open sign-up is off: this is an internal CRM and accounts are created by a manager.
+    # Anyone who registered while it was open holds the NONE role and has no access.
+    self-registration-enabled: ${SELF_REGISTRATION_ENABLED:false}
 
 # Cloudinary CDN Configuration
 cloudinary:

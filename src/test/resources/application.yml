@@ -1,0 +1,37 @@
+# Test configuration. Shadows the main application.yml so repository tests do not need the
+# real database credentials, the Gemini key, or the OAuth client secrets to start a context.
+spring:
+  datasource:
+    url: jdbc:h2:mem:crm;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: false
+  gemini:
+    api-key: test-key
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-client
+            client-secret: test-secret
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
+  admin:
+    emails: admin@test.local
+  auth:
+    self-registration-enabled: false
+
+cloudinary:
+  cloud-name: test
+  api-key: test
+  api-secret: test

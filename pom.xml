@@ -71,6 +71,16 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!--
+      In-memory database for repository tests. There is no container runtime available in this
+      environment, so this verifies that the entity mappings and queries actually execute rather
+      than only that they compile. It is not a substitute for running against Postgres.
+    -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-test</artifactId>
