@@ -66,7 +66,11 @@ server:
   servlet:
     session:
       cookie:
-        secure: true
+        # Secure cookies are correct in production, where Caddy terminates TLS. A browser
+        # refuses to store one over plain HTTP, so local staging on http://localhost would
+        # appear to accept a login and then behave as though nobody had signed in.
+        # Never set this to false for anything reachable from the internet.
+        secure: ${COOKIE_SECURE:true}
         # 'lax' is correct now that the SPA and the API share one origin behind Caddy.
         # It was 'none' only because the frontend (Vercel) and backend (Render) were
         # cross-site; 'none' is increasingly blocked by browser privacy controls.

@@ -24,9 +24,11 @@ services:
       - DATABASE_URL=jdbc:postgresql://db:5432/${DATABASE_NAME:-devanshedutech}
       - DATABASE_USERNAME=${DATABASE_USERNAME:-devanshedutech}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8000}
       - SUPER_ADMIN_EMAILS=${SUPER_ADMIN_EMAILS:-}
       - CRM_TIMEZONE=${CRM_TIMEZONE:-Asia/Kolkata}
+      # Local staging is plain HTTP. Never do this on anything reachable from the internet.
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
       # Optional features. Left empty they degrade rather than block startup.
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME:-}
@@ -42,13 +44,12 @@ services:
       db:
         condition: service_healthy
 
-  nginx:
-    image: nginx:stable-alpine
+  web:
+    # Builds the sibling frontend repository. Both repos must sit in the same folder.
+    build: ../devanshedutech-frontend
     restart: always
     ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - "8000:80"
     depends_on:
       - backend
 
