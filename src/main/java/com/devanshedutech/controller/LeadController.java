@@ -13,6 +13,7 @@ import com.devanshedutech.service.LeadCaptureService;
 import com.devanshedutech.service.LeadLadderScheduler;
 import com.devanshedutech.service.LeadLadderService;
 import com.devanshedutech.service.LeadLifecycleService;
+import com.devanshedutech.service.NotificationService;
 import com.devanshedutech.service.LeadLifecycleService.Actor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +49,7 @@ public class LeadController {
     private final AccessService access;
     private final LeadLadderService ladder;
     private final LeadLadderScheduler ladderScheduler;
+    private final NotificationService notifications;
 
     public LeadController(LeadRepository leadRepository,
                           LeadCaptureService capture,
@@ -55,7 +57,8 @@ public class LeadController {
                           LeadMapper mapper,
                           AccessService access,
                           LeadLadderService ladder,
-                          LeadLadderScheduler ladderScheduler) {
+                          LeadLadderScheduler ladderScheduler,
+                          NotificationService notifications) {
         this.leadRepository = leadRepository;
         this.capture = capture;
         this.lifecycle = lifecycle;
@@ -63,6 +66,7 @@ public class LeadController {
         this.access = access;
         this.ladder = ladder;
         this.ladderScheduler = ladderScheduler;
+        this.notifications = notifications;
     }
 
     // ==================================================================
@@ -299,6 +303,11 @@ public class LeadController {
             access.require(auth, Permission.LEAD_ASSIGN);
             String newOwner = clearing ? null : request.getAssignedToId();
             lifecycle.assign(lead, newOwner, access.nameOf(newOwner), who);
+            // Told immediately rather than at tomorrow's sweep: a lead handed over today is
+            // work somebody needs to pick up today.
+            if (newOwner != null && !newOwner.equals(who.id())) {
+                notifications.leadAssigned(lead, newOwner, who.name());
+            }
         }
 
         return ResponseEntity.ok(mapper.toResponse(leadRepository.save(lead)));

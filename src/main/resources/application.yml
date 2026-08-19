@@ -113,6 +113,13 @@ app:
       reply-freeze-hours: ${LADDER_REPLY_FREEZE_HOURS:48}
       # Below this many real touches, a closed lead is flagged as never actually worked.
       worked-threshold: ${LADDER_WORKED_THRESHOLD:3}
+    notifications:
+      # Runs just after the follow-up pass, so the day's work is already decided.
+      cron: ${NOTIFICATION_CRON:0 15 6 * * *}
+      cleanup-cron: ${NOTIFICATION_CLEANUP_CRON:0 30 3 * * SUN}
+    metrics:
+      # Below this many records a rate is noise, so it is withheld rather than printed.
+      min-sample: ${METRICS_MIN_SAMPLE:5}
 
   auth:
     # Open sign-up is off: this is an internal CRM and accounts are created by a manager.
