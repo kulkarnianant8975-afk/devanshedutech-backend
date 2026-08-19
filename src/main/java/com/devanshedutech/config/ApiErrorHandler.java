@@ -55,6 +55,21 @@ public class ApiErrorHandler {
     }
 
     /**
+     * Authorisation and authentication failures belong to the security filter chain.
+     *
+     * <p>Rethrown rather than answered here. A catch-all advice sits inside the dispatcher and
+     * runs before the security filter sees the exception, so handling these would have quietly
+     * converted every 403 into a 500 — and worse, would have decided the response itself,
+     * bypassing the rule that an anonymous caller gets 401 while a signed-in one gets 403.</p>
+     */
+    @ExceptionHandler({
+            org.springframework.security.access.AccessDeniedException.class,
+            org.springframework.security.core.AuthenticationException.class})
+    public void rethrowSecurity(Exception e) throws Exception {
+        throw e;
+    }
+
+    /**
      * Anything unplanned.
      *
      * <p>Logged in full and reported as a fixed sentence. The exception's own message is exactly
