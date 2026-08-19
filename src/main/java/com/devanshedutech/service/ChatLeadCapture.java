@@ -42,6 +42,16 @@ public class ChatLeadCapture {
             "interested", "looking", "asking", "from", "a", "an", "the", "student", "here",
             "just", "not", "sure", "confused", "planning", "thinking", "in", "doing", "studying");
 
+    /**
+     * Words that end a name rather than continue it.
+     *
+     * <p>People write "my name is Sneha Patil and my number is ..." in one breath, and without
+     * this the lead is filed as "Sneha Patil And" — which a counsellor then reads out loud.</p>
+     */
+    private static final List<String> ENDS_A_NAME = List.of(
+            "and", "my", "i", "im", "the", "is", "from", "but", "also", "number", "no",
+            "mobile", "contact", "call", "whatsapp", "please", "sir", "madam", "for", "in");
+
     private final LeadCaptureService capture;
 
     public ChatLeadCapture(LeadCaptureService capture) {
@@ -94,9 +104,17 @@ public class ChatLeadCapture {
         Matcher m = NAME.matcher(message);
         while (m.find()) {
             String candidate = m.group(1).trim();
-            String firstWord = candidate.split("\\s+")[0].toLowerCase(java.util.Locale.ROOT);
-            if (NOT_NAMES.contains(firstWord)) continue;
-            return Optional.of(titleCase(candidate));
+            String[] words = candidate.split("\\s+");
+            if (NOT_NAMES.contains(words[0].toLowerCase(java.util.Locale.ROOT))) continue;
+
+            StringBuilder name = new StringBuilder();
+            for (String word : words) {
+                if (ENDS_A_NAME.contains(word.toLowerCase(java.util.Locale.ROOT))) break;
+                if (name.length() > 0) name.append(' ');
+                name.append(word);
+            }
+            if (name.length() == 0) continue;
+            return Optional.of(titleCase(name.toString()));
         }
         return Optional.empty();
     }

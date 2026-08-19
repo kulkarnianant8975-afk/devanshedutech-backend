@@ -91,6 +91,10 @@ class ChatLeadCaptureTest {
             "'I am Omkar',                       Omkar",
             "'this is Sneha here',               Sneha Here",
             "'Name: Amit Deshpande',             Amit Deshpande",
+            // How people actually type it: the name and the number in one breath.
+            "'my name is Sneha Patil and my number is 9876543210', Sneha Patil",
+            "'I am Rohit, mobile 9876543210',    Rohit",
+            "'this is Priya from Parbhani',      Priya",
     })
     void namesAreFound(String message, String expected) {
         assertEquals(Optional.of(expected), chat.findName(message));
