@@ -117,6 +117,10 @@ app:
       # Runs just after the follow-up pass, so the day's work is already decided.
       cron: ${NOTIFICATION_CRON:0 15 6 * * *}
       cleanup-cron: ${NOTIFICATION_CLEANUP_CRON:0 30 3 * * SUN}
+    whatsapp:
+      # The institute's number, digits only with country code. Used to build the deep link that
+      # opens a message ready to send; sending stays manual until a provider is connected.
+      number: ${WHATSAPP_NUMBER:917972217407}
     capture:
       # A student submits once; a college seminar on one office wifi is a legitimate burst.
       rate-limit-per-minute: ${CAPTURE_RATE_LIMIT:6}

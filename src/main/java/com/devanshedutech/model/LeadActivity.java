@@ -65,6 +65,14 @@ public class LeadActivity {
     @Column(name = "detail", columnDefinition = "TEXT")
     private String detail;
 
+    /** Which pack was sent, when this entry is an outbound send. */
+    @Column(name = "pack_key", length = 40)
+    private String packKey;
+
+    /** queued / sent / delivered / failed, once a messaging provider reports back. */
+    @Column(name = "delivery_status", length = 20)
+    private String deliveryStatus;
+
     @Column(name = "created_by_id")
     private String createdById;
 

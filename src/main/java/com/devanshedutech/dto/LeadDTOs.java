@@ -87,6 +87,12 @@ public class LeadDTOs {
         private String detail;
     }
 
+    /** Which attachments the counsellor actually included. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class SentPackRequest {
+        private List<String> assets;
+    }
+
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class InboundRequest {
         private String text;
