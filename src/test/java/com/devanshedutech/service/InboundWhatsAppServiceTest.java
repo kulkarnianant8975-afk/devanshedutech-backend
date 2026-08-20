@@ -267,6 +267,21 @@ class InboundWhatsAppServiceTest {
     }
 
     @Test
+    @DisplayName("a refused auto-reply is not reported as a delivered one")
+    void aRefusedReplyIsNotCalledSuccess() {
+        // The lead's timeline already records the refusal. A log line claiming success would be
+        // the one place somebody looks when a student says they never heard back.
+        when(packs.send(any(), anyString(), any(), any(), any())).thenReturn(
+                new SendPackService.SendOutcome(false, "failed",
+                        "That number is not on the test number's allowed list.", null, "WhatsApp Cloud API"));
+
+        assertDoesNotThrow(() -> service.handle(new InboundWhatsAppService.Incoming(
+                "wamid.12", "919876543210", "Rohit", "hi")));
+        // Still filed and still recorded — only the claim of delivery is withheld.
+        verify(lifecycle).recordInbound(any(), eq("hi"), any());
+    }
+
+    @Test
     @DisplayName("a student with no WhatsApp name is labelled honestly")
     void missingProfileNamesAreHandled() {
         service.handle(new InboundWhatsAppService.Incoming("wamid.11", "919876543210", null, "hi"));

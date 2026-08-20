@@ -210,8 +210,17 @@ public class InboundWhatsAppService {
 
     private void autoReply(Lead lead) {
         try {
-            packs.send(lead, AUTO_REPLY_PACK, null, null, LeadLifecycleService.Actor.system());
-            log.info("Auto-replied to lead {} on WhatsApp.", lead.getId());
+            SendPackService.SendOutcome outcome =
+                    packs.send(lead, AUTO_REPLY_PACK, null, null, LeadLifecycleService.Actor.system());
+            // Reported as it actually went. A send that WhatsApp refused is already written to
+            // the lead's timeline, and a log claiming success would be the one place somebody
+            // looks when a student says they never heard back.
+            if (outcome != null && outcome.sent()) {
+                log.info("Auto-replied to lead {} on WhatsApp.", lead.getId());
+            } else {
+                log.warn("Auto-reply to lead {} was not delivered: {}", lead.getId(),
+                        outcome == null ? "no outcome returned" : outcome.detail());
+            }
         } catch (RuntimeException e) {
             // Never fatal. The message is already filed and a counsellor can still pick it up;
             // failing the webhook here would only make Meta redeliver it.
