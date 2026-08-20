@@ -46,7 +46,7 @@ public class MetaCloudChannel implements WhatsAppChannel {
     @Value("${app.crm.whatsapp.meta.phone-number-id:}")
     private String phoneNumberId;
 
-    @Value("${app.crm.whatsapp.meta.api-version:v21.0}")
+    @Value("${app.crm.whatsapp.meta.api-version:v25.0}")
     private String apiVersion;
 
     /**

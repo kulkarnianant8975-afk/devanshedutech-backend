@@ -148,7 +148,7 @@ app:
         access-token: ${WHATSAPP_ACCESS_TOKEN:}
         # The numeric id shown beside the number in the dashboard, NOT the phone number.
         phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
-        api-version: ${WHATSAPP_API_VERSION:v21.0}
+        api-version: ${WHATSAPP_API_VERSION:v25.0}
         # hello_world is pre-approved on every test number, so a first test needs nothing
         # submitted for review.
         template: ${WHATSAPP_TEMPLATE:hello_world}
