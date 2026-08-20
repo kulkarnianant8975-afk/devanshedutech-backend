@@ -1,5 +1,6 @@
 package com.devanshedutech.service;
 
+import com.devanshedutech.channel.MetaCloudChannel;
 import com.devanshedutech.channel.AiSensyChannel;
 import com.devanshedutech.channel.ManualWhatsAppChannel;
 import com.devanshedutech.channel.WhatsAppSender;
@@ -66,7 +67,7 @@ class SendPackServiceTest {
         // before connecting a provider.
         AiSensyChannel provider = new AiSensyChannel(new org.springframework.boot.web.client.RestTemplateBuilder());
         org.springframework.test.util.ReflectionTestUtils.setField(provider, "apiKey", "");
-        WhatsAppSender sender = new WhatsAppSender(provider, new ManualWhatsAppChannel());
+        WhatsAppSender sender = new WhatsAppSender(noMeta(), provider, new ManualWhatsAppChannel());
         org.springframework.test.util.ReflectionTestUtils.setField(sender, "publicBaseUrl", "");
 
         // No public base URL, so tracked assets fall back to their plain URLs. These tests are
@@ -247,5 +248,10 @@ class SendPackServiceTest {
         when(packs.findByKey(anyString())).thenReturn(Optional.empty());
         assertThrows(org.springframework.web.server.ResponseStatusException.class,
                 () -> service.prepare(lead(null), "nonsense", "Aditya"));
+    }
+
+    /** A Cloud API channel with no credentials, so these tests exercise the other channels. */
+    private static MetaCloudChannel noMeta() {
+        return new MetaCloudChannel(new org.springframework.boot.web.client.RestTemplateBuilder());
     }
 }

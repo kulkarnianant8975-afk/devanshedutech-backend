@@ -1,5 +1,6 @@
 package com.devanshedutech.service;
 
+import com.devanshedutech.channel.MetaCloudChannel;
 import com.devanshedutech.channel.AiSensyChannel;
 import com.devanshedutech.channel.ManualWhatsAppChannel;
 import com.devanshedutech.channel.WhatsAppSender;
@@ -38,7 +39,7 @@ class BroadcastServiceTest {
         ReflectionTestUtils.setField(provider, "apiKey", configured ? "key" : "");
         ReflectionTestUtils.setField(provider, "endpoint", "http://127.0.0.1:1/none");
         ReflectionTestUtils.setField(provider, "campaign", "crm");
-        WhatsAppSender sender = new WhatsAppSender(provider, new ManualWhatsAppChannel());
+        WhatsAppSender sender = new WhatsAppSender(noMeta(), provider, new ManualWhatsAppChannel());
         ReflectionTestUtils.setField(sender, "publicBaseUrl", "");
 
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
@@ -114,5 +115,10 @@ class BroadcastServiceTest {
         for (BroadcastService.Segment segment : BroadcastService.Segment.values()) {
             assertNotNull(service.specFor(segment), segment + " has no specification");
         }
+    }
+
+    /** A Cloud API channel with no credentials, so these tests exercise the other channels. */
+    private static MetaCloudChannel noMeta() {
+        return new MetaCloudChannel(new org.springframework.boot.web.client.RestTemplateBuilder());
     }
 }

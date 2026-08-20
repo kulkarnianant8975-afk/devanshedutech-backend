@@ -47,6 +47,13 @@ services:
       - LADDER_ENABLED=${LADDER_ENABLED:-false}
       # Empty means the swipe hands off to the counsellor's own WhatsApp; set it and the
       # message goes to the student directly.
+      # WhatsApp. Meta's own Cloud API is the one to test on — its test number sends free
+      # messages to up to five recipients you verify in the dashboard.
+      - WHATSAPP_CHANNEL=${WHATSAPP_CHANNEL:-auto}
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_TEMPLATE=${WHATSAPP_TEMPLATE:-hello_world}
+      - WHATSAPP_TEMPLATE_LANGUAGE=${WHATSAPP_TEMPLATE_LANGUAGE:-en_US}
       - AISENSY_API_KEY=${AISENSY_API_KEY:-}
       - AISENSY_CAMPAIGN=${AISENSY_CAMPAIGN:-crm_message}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}

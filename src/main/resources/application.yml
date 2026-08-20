@@ -133,6 +133,26 @@ app:
     whatsapp:
       # The institute's number, digits only with country code.
       number: ${WHATSAPP_NUMBER:917972217407}
+      # Which channel sends: auto, meta, aisensy or manual.
+      #
+      # auto uses whatever is configured, preferring Meta's own Cloud API. Pin it to one value
+      # while testing — otherwise adding a second set of keys silently moves every message.
+      channel: ${WHATSAPP_CHANNEL:auto}
+      meta:
+        # From the WhatsApp page of a Meta app. The test number there sends free messages to up
+        # to five recipients you add and verify in the dashboard, which is the cheapest way to
+        # watch a real message land on a real phone before choosing a provider.
+        #
+        # A test token lasts 24 hours. For anything beyond testing, create a permanent token
+        # from a System User instead.
+        access-token: ${WHATSAPP_ACCESS_TOKEN:}
+        # The numeric id shown beside the number in the dashboard, NOT the phone number.
+        phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+        api-version: ${WHATSAPP_API_VERSION:v21.0}
+        # hello_world is pre-approved on every test number, so a first test needs nothing
+        # submitted for review.
+        template: ${WHATSAPP_TEMPLATE:hello_world}
+        template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:en_US}
       aisensy:
         # Set this and the swipe sends to the student directly. Leave it empty and the message
         # opens in the counsellor's own WhatsApp instead, so the product works either way.

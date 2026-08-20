@@ -24,7 +24,7 @@ class WhatsAppSenderTest {
         ReflectionTestUtils.setField(provider, "endpoint", "http://localhost:1/never-called");
         ReflectionTestUtils.setField(provider, "campaign", "crm_message");
 
-        WhatsAppSender s = new WhatsAppSender(provider, new ManualWhatsAppChannel());
+        WhatsAppSender s = new WhatsAppSender(noMeta(), provider, new ManualWhatsAppChannel());
         ReflectionTestUtils.setField(s, "publicBaseUrl", baseUrl);
         return s;
     }
@@ -132,5 +132,10 @@ class WhatsAppSenderTest {
                 "the provider echoes the request back on error; the key must not reach the browser");
         assertTrue(result.detail().contains("not been sent"),
                 "a counsellor must know the message did not go");
+    }
+
+    /** A Cloud API channel with no credentials, so these tests exercise the other channels. */
+    private static MetaCloudChannel noMeta() {
+        return new MetaCloudChannel(new org.springframework.boot.web.client.RestTemplateBuilder());
     }
 }
