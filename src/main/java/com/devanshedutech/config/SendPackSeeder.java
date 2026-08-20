@@ -36,6 +36,15 @@ public class SendPackSeeder {
             asset(assets, "demo_link", "Book your free demo", "LINK", "/contact", "tracked", true);
             asset(assets, "courses_page", "All courses and outcomes", "LINK", "/courses", "tracked", true);
 
+            pack(packs, "auto_reply", "Automatic first reply",
+                    "Sent by the system the moment a student messages first — playbook 4.3",
+                    "Hi {{first_name}}! 👋 Thanks for messaging Devansh Edu-Tech.\n\n"
+                  + "We train students in {{city}} for IT careers — practical, project-based "
+                  + "batches with placement support, taught by people who have done the job.\n\n"
+                  + "Sharing our course list and fees here. Which one are you thinking about? "
+                  + "A counsellor will call you shortly to help you choose.",
+                    "brochure_general", true);
+
             pack(packs, "guidance", "Post-call guidance pack",
                     "SOP section 4, step 5 — never end a call vague",
                     "Great speaking with you, {{first_name}}! 😊 As promised, here is everything for "

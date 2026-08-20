@@ -66,7 +66,12 @@ public class SecurityConfig {
                 // kept working, because those are exempt below. Setting the request-attribute name
                 // to null opts out of the deferred loading and issues the cookie on every request.
                 .csrfTokenRequestHandler(eagerCsrfTokenHandler())
-                .ignoringRequestMatchers("/api/chat", "/api/leads", "/api/messages", "/api/auth/login", "/api/auth/register")
+                .ignoringRequestMatchers("/api/chat", "/api/leads", "/api/messages", "/api/auth/login",
+                                         "/api/auth/register",
+                                         // Meta cannot carry our CSRF token. It proves itself
+                                         // with an HMAC signature over the body instead, which
+                                         // is a stronger check than CSRF gives us here.
+                                         "/api/webhooks/**")
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .exceptionHandling(e -> e
@@ -81,6 +86,9 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
+                // Meta calls this with no session. It proves itself with an HMAC signature over
+                // the body instead, checked in the controller.
+                .requestMatchers("/api/webhooks/**").permitAll()
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/courses/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/hiring").permitAll()

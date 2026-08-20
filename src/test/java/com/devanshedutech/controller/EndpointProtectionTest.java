@@ -46,7 +46,12 @@ class EndpointProtectionTest {
             // The public contact form.
             "MessageController#createMessage",
             // The public website chatbot.
-            "ChatController#chat"
+            "ChatController#chat",
+            // Meta delivers student messages here and cannot hold a session or a CSRF token.
+            // It authenticates instead with an HMAC signature over the raw body, checked against
+            // the app secret before anything is read — a stronger guarantee than a role check,
+            // since it proves who sent the request rather than who was logged in.
+            "WhatsAppWebhookController#receive"
     );
 
     private static final List<Class<? extends Annotation>> MUTATING = List.of(

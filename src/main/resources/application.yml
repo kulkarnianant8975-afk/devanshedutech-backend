@@ -153,6 +153,15 @@ app:
         # submitted for review.
         template: ${WHATSAPP_TEMPLATE:hello_world}
         template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:en_US}
+      # Any string you like — it just has to match what you type into Meta's webhook form.
+      verify-token: ${WHATSAPP_VERIFY_TOKEN:}
+      # From App settings -> Basic in the Meta dashboard. Without it the webhook accepts the
+      # handshake and then refuses every message, because a public endpoint that sends WhatsApp
+      # messages must be able to prove the request came from Meta.
+      app-secret: ${WHATSAPP_APP_SECRET:}
+      # Reply automatically to a student who messages first. Only ever on the opening message of
+      # a conversation, never in the middle of one a counsellor is already having.
+      auto-reply: ${WHATSAPP_AUTO_REPLY:true}
       aisensy:
         # Set this and the swipe sends to the student directly. Leave it empty and the message
         # opens in the counsellor's own WhatsApp instead, so the product works either way.
