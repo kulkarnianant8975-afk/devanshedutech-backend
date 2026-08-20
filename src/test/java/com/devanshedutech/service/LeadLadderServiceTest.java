@@ -137,10 +137,47 @@ class LeadLadderServiceTest {
     }
 
     @Test
+    @DisplayName("finishing the Warm lane without converting drops the lead to Cold")
     void warmDecaysToCold() {
         Lead l = graded(Grade.WARM, 18 + GRACE);
-        ladder.advance(l, LocalDate.now());
+        var result = ladder.advance(l, LocalDate.now());
+
+        assertEquals("demoted", result.orElseThrow().action());
         assertEquals(Grade.COLD, l.getGrade());
+        assertEquals(1, l.getLadderStep(), "the new lane restarts at step one");
+    }
+
+    @Test
+    @DisplayName("one lead walks the whole way down: Hot to Warm to Cold to Lost")
+    void theWholeChainRunsEndToEnd() {
+        // Each link is covered on its own above. This is the chain itself, which is the thing
+        // that was actually asked for — and the failure it guards against is a lane that does
+        // not restart its clock on demotion, which would drop a lead from Hot straight to Lost
+        // in a single pass while every individual test still passed.
+        // Nobody ever rings this student, which is the case worth following all the way down.
+        // The shared fixture stubs a well-worked lead, so this has to be said explicitly.
+        when(activities.countRealTouches(any())).thenReturn(0L);
+        Lead l = graded(Grade.HOT, 7 + GRACE);
+
+        assertEquals("demoted-untouched", ladder.advance(l, LocalDate.now()).orElseThrow().action());
+        assertEquals(Grade.WARM, l.getGrade());
+
+        // Nothing further happens until the new lane has had its own time to run.
+        assertTrue(ladder.advance(l, LocalDate.now()).isEmpty(),
+                "a freshly demoted lead is not demoted again the same day");
+
+        l.setGradeEnteredAt(LocalDateTime.now().minusDays(18 + GRACE));
+        assertEquals("demoted-untouched", ladder.advance(l, LocalDate.now()).orElseThrow().action());
+        assertEquals(Grade.COLD, l.getGrade());
+
+        l.setGradeEnteredAt(LocalDateTime.now().minusDays(90 + GRACE));
+        ladder.advance(l, LocalDate.now());
+
+        assertEquals(Stage.LOST, l.getStage(), "the end of the road is Lost");
+        assertEquals(Grade.COLD, l.getGrade(),
+                "and it stays Cold — a closed lead keeps the grade it was closed at");
+        assertEquals(Boolean.TRUE, l.getLostUnworked(),
+                "never contacted once on the way down, so this is a follow-up failure");
     }
 
     @Test
