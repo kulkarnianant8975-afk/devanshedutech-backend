@@ -98,8 +98,26 @@ jobs:
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
-          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" > ~/.ssh/known_hosts
+          # Normalised rather than taken literally. A pasted key picks up carriage returns,
+          # stray indentation and wrapped lines depending on where it was copied from, and every
+          # one of those produces the same unhelpful "Host key verification failed". The key
+          # itself is unchanged — only the surrounding whitespace is repaired.
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" \
+            | tr -d '\r' \
+            | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+            | grep -v '^$' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+
+          # The host in the secret must be the one we connect to. Getting VPS_HOST wrong — a
+          # https:// prefix, a trailing slash, a hostname where the key says an address — fails
+          # exactly like a wrong key, so it is checked separately.
+          HOST_IN_KEY=$(awk '{print $1}' ~/.ssh/known_hosts | head -1)
+          if [ "$HOST_IN_KEY" != "${{ secrets.VPS_HOST }}" ]; then
+            echo "::warning::VPS_HOST_KEY is pinned to '$HOST_IN_KEY' but VPS_HOST is different."
+            echo "::warning::Adding the connecting host as an alias so both forms match."
+            KEY_PART=$(cut -d' ' -f2- ~/.ssh/known_hosts | head -1)
+            echo "${{ secrets.VPS_HOST }} $KEY_PART" >> ~/.ssh/known_hosts
+          fi
           if ! grep -q . ~/.ssh/known_hosts; then
             echo "::error::VPS_HOST_KEY secret is empty. Capture it with: ssh-keyscan -t ed25519 <host>"
             exit 1
