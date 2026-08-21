@@ -105,6 +105,21 @@ jobs:
             exit 1
           fi
 
+          # Fingerprints, never the keys themselves. "Host key verification failed" tells you
+          # nothing about which side is wrong, and GitHub masks the secret in logs — so comparing
+          # fingerprints is the only way to see whether the pinned value is malformed, is for a
+          # different host, or is simply out of date.
+          echo "known_hosts: $(wc -l < ~/.ssh/known_hosts) line(s), $(wc -c < ~/.ssh/known_hosts) bytes"
+          echo "--- pinned ---"
+          ssh-keygen -lf ~/.ssh/known_hosts 2>&1 || echo "  cannot parse — the secret is not valid known_hosts format"
+          echo "--- what the server actually presents ---"
+          ssh-keyscan -t ed25519,rsa,ecdsa "${{ secrets.VPS_HOST }}" 2>/dev/null > /tmp/live_keys || true
+          if [ -s /tmp/live_keys ]; then
+            ssh-keygen -lf /tmp/live_keys 2>&1 || true
+          else
+            echo "  the server did not answer ssh-keyscan"
+          fi
+
       # Refuses rather than guesses. Two other projects live on this machine and one of them owns
       # the public ports; anything unexpected here means stop, not improvise.
       - name: Pre-flight
