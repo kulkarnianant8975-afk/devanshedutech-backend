@@ -72,6 +72,19 @@ public class SendPackService {
     }
 
     /** One asset, resolved for a particular lead. */
+    /**
+     * How a thing can actually reach the student.
+     *
+     * <p>WhatsApp carries a video of up to sixteen megabytes inside the message. Anything larger
+     * is hosted here and sent as a link that streams — the same file, delivered the only way it
+     * can be. Deciding that here rather than at the provider means the counsellor sees, before
+     * they swipe, which of their attachments will arrive as a bubble and which as a link.</p>
+     */
+    public static boolean fitsInsideWhatsApp(String type, Long sizeBytes) {
+        if (!"VIDEO".equals(type)) return true;
+        return sizeBytes == null || sizeBytes <= com.devanshedutech.controller.AssetController.WHATSAPP_INLINE_VIDEO;
+    }
+
     public record ResolvedAsset(String key, String name, String type, String url,
                                 String sizeLabel, boolean tracked) {}
 
@@ -158,9 +171,26 @@ public class SendPackService {
                 // against them. Untrackable ones fall back to the plain URL rather than
                 // sending a student a link that does not work.
                 String sent = tracking.trackedUrl(lead, a.getKey(), name, url, a.isTracked());
-                resolved.add(new ResolvedAsset(a.getKey(), name, a.getType(),
+                // A video too big for a WhatsApp message becomes a link to itself. Same file,
+                // same tracking, delivered the only way WhatsApp allows.
+                String type = fitsInsideWhatsApp(a.getType(), a.getSizeBytes()) ? a.getType() : "LINK";
+                resolved.add(new ResolvedAsset(a.getKey(), name, type,
                         sent, a.getSizeLabel(), a.isTracked()));
             });
+        }
+
+        // Links are not attachments — WhatsApp has nothing to attach them to — so they are
+        // appended to the message itself. Without this a chosen link would be silently dropped,
+        // and the send would report success having delivered nothing the counsellor picked.
+        List<ResolvedAsset> links = resolved.stream()
+                .filter(a -> "LINK".equals(a.type()) && a.url() != null && a.url().startsWith("http"))
+                .toList();
+        if (!links.isEmpty()) {
+            StringBuilder withLinks = new StringBuilder(message);
+            for (ResolvedAsset link : links) {
+                withLinks.append("\n\n").append(link.name()).append(":\n").append(link.url());
+            }
+            message = withLinks.toString();
         }
 
         boolean auto = whatsapp.sendsAutomatically();

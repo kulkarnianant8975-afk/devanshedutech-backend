@@ -54,6 +54,17 @@ public class Asset {
     private String sizeLabel;
 
     /**
+     * The exact size, which decides how the thing can be delivered.
+     *
+     * <p>WhatsApp carries a video of up to sixteen megabytes inside the message and refuses
+     * anything larger. A bigger file is not useless — it is streamed from a link instead — but
+     * the send path has to know which it is dealing with, and a formatted string like "180.4 MB"
+     * is not something to make that decision on.</p>
+     */
+    @Column(name = "size_bytes")
+    private Long sizeBytes;
+
+    /**
      * Whether opening it is recorded against the lead. Only meaningful for links this
      * application serves — an external URL cannot be observed, and pretending otherwise would
      * put a number on the screen that means nothing.

@@ -50,9 +50,19 @@ public class AssetController {
      * and that is a property of WhatsApp rather than a decision made here.</p>
      */
     private static final Map<String, Long> LIMITS = Map.of(
-            "VIDEO", 16L * 1024 * 1024,
-            "IMAGE",  5L * 1024 * 1024,
-            "PDF",  100L * 1024 * 1024);
+            "VIDEO", 200L * 1024 * 1024,
+            "IMAGE",   5L * 1024 * 1024,
+            "PDF",   100L * 1024 * 1024);
+
+    /**
+     * The largest video WhatsApp will carry inside a message.
+     *
+     * <p>Meta's limit, and not one that can be worked around. A larger file is still perfectly
+     * useful — it is hosted here and sent as a link the student taps, which streams from this
+     * server. The only difference is whether it appears as a video bubble in the chat or as a
+     * link, and a two-hundred megabyte film was never going to be a bubble.</p>
+     */
+    public static final long WHATSAPP_INLINE_VIDEO = 16L * 1024 * 1024;
 
     /**
      * WhatsApp plays only these, and silently fails on the rest.
@@ -219,11 +229,17 @@ public class AssetController {
                     .url("/api/assets/" + id + "/download")
                     .courseId(blankToNull(courseId))
                     .sizeLabel(human(file.getSize()))
+                    .sizeBytes(file.getSize())
                     .tracked(true)
                     .active(true)
                     .build();
 
-            log.info("Uploaded {} '{}' ({})", type, name, human(file.getSize()));
+            if ("VIDEO".equals(type) && file.getSize() > WHATSAPP_INLINE_VIDEO) {
+                log.info("Uploaded {} '{}' ({}) — too large for a WhatsApp video message, so it "
+                        + "will be sent as a streaming link.", type, name, human(file.getSize()));
+            } else {
+                log.info("Uploaded {} '{}' ({})", type, name, human(file.getSize()));
+            }
             return assets.save(asset);
 
         } catch (java.io.IOException e) {
