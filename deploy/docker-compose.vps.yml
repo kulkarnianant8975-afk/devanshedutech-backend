@@ -23,6 +23,10 @@ networks:
 volumes:
   devanshedutech_pgdata:
     name: devanshedutech_pgdata
+  # Uploaded media lives on disk, not in Postgres. A 16 MB video per row would bloat every
+  # backup and every restore of a database whose actual job is 55 leads and their history.
+  devanshedutech_media:
+    name: devanshedutech_media
 
 x-logging: &default-logging
   driver: json-file
@@ -145,6 +149,8 @@ services:
       # the backend stopped, immediately before the first deploy of this file.
       TZ: ${CRM_TIMEZONE:-Asia/Kolkata}
       CRM_TIMEZONE: ${CRM_TIMEZONE:-Asia/Kolkata}
+    volumes:
+      - devanshedutech_media:/var/lib/devansh/media
     networks: [devanshedutech_net]
     mem_limit: 1g
     mem_reservation: 512m
