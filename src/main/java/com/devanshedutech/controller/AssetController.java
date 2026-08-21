@@ -243,9 +243,15 @@ public class AssetController {
             return assets.save(asset);
 
         } catch (java.io.IOException e) {
-            log.error("Could not store the uploaded file", e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "The file could not be saved. Try again.");
+            log.error("Could not store the uploaded file in {}", mediaDir, e);
+            // Named rather than generic. "Try again" is advice that cannot work when the storage
+            // is unwritable, and it sends somebody to re-export their video instead of to the
+            // one line of configuration that is actually wrong.
+            boolean writable = java.nio.file.Files.isWritable(java.nio.file.Paths.get(mediaDir).getParent());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, writable
+                    ? "The file could not be saved. Try again."
+                    : "The media folder on the server is not writable, so nothing can be uploaded "
+                      + "until that is fixed. This is a server setting, not a problem with your file.");
         }
     }
 
