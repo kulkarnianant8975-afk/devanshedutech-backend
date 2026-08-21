@@ -95,6 +95,54 @@ public class LeadController {
     @Value("${app.crm.capture.rate-limit-per-minute:6}")
     private int captureLimitPerMinute;
 
+    /**
+     * A lead entered by a counsellor: a walk-in, a phone enquiry, a name from a seminar.
+     *
+     * <p>Separate from the public endpoint for three reasons. It is not rate limited, because a
+     * counsellor typing in the twenty names they collected at a college is not abuse. It records
+     * who entered it, so the timeline says a person did rather than "system". And it assigns the
+     * lead to whoever added it, because somebody standing in front of a student is already the
+     * owner — waiting for the duty roster to decide would be absurd.</p>
+     *
+     * <p>Everything else is shared with the public path: the same phone normalisation, the same
+     * thirty-day duplicate check. A student who filled the website form last week and walks in
+     * today is one person, and a counsellor should see that history rather than start a rival
+     * record.</p>
+     */
+    @PostMapping("/manual")
+    @PreAuthorize("hasAuthority('PERM_LEAD_CREATE')")
+    public ResponseEntity<CaptureResponse> createManualLead(@RequestBody LeadRequest request,
+                                                            Authentication auth) {
+        LeadSource source = LeadSource.parse(request.getSource(), LeadSource.WALK_IN);
+        LeadCaptureService.Captured result = capture.capture(request, source);
+        Lead lead = result.lead();
+
+        Actor actor = actor(auth);
+        if (lead.getAssignedToId() == null) {
+            var me = access.requireUser(auth);
+            String myName = me.getDisplayName() == null ? me.getEmail() : me.getDisplayName();
+            lifecycle.assign(lead, me.getId(), myName, actor);
+        }
+        lifecycle.log(lead, com.devanshedutech.model.crm.ActivityType.SYSTEM, null,
+                com.devanshedutech.model.crm.Direction.INTERNAL,
+                result.duplicate() ? "Added by hand — matched an existing lead" : "Added by hand",
+                result.duplicate()
+                        ? "This number was already in the pipeline, so the enquiry was folded into "
+                          + "the record that exists rather than starting a second one."
+                        : "Entered from a " + source.getLabel().toLowerCase(java.util.Locale.ROOT) + ".",
+                actor);
+
+        return ResponseEntity.status(result.duplicate() ? HttpStatus.OK : HttpStatus.CREATED)
+                .body(CaptureResponse.builder()
+                        .id(lead.getId())
+                        .fullName(lead.getFullName())
+                        .duplicate(result.duplicate())
+                        .message(result.duplicate()
+                                ? "That number is already in the pipeline — opening the existing lead."
+                                : "Added. It is in your day now.")
+                        .build());
+    }
+
     @PostMapping
     public ResponseEntity<CaptureResponse> createLead(@RequestBody LeadRequest request,
                                                       HttpServletRequest http) {
