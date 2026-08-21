@@ -29,6 +29,7 @@ class InboundWhatsAppServiceTest {
     private LeadCaptureService capture;
     private LeadLifecycleService lifecycle;
     private SendPackService packs;
+    private CourseMatcher courseMatcher;
     private InboundWhatsAppService service;
 
     private Map<String, InboundMessage> seen;
@@ -40,6 +41,9 @@ class InboundWhatsAppServiceTest {
         capture = mock(LeadCaptureService.class);
         lifecycle = mock(LeadLifecycleService.class);
         packs = mock(SendPackService.class);
+        courseMatcher = mock(CourseMatcher.class);
+        // These tests are about capture and replying; course matching has its own suite.
+        when(courseMatcher.match(any())).thenReturn(java.util.Optional.empty());
 
         seen = new HashMap<>();
         when(inbound.existsById(anyString())).thenAnswer(i -> seen.containsKey(i.getArgument(0)));
@@ -56,7 +60,7 @@ class InboundWhatsAppServiceTest {
                     .notes(r.getNotes()).optedOut(false).build(), false);
         });
 
-        service = new InboundWhatsAppService(inbound, leads, capture, lifecycle, packs);
+        service = new InboundWhatsAppService(inbound, leads, capture, lifecycle, packs, courseMatcher);
         ReflectionTestUtils.setField(service, "autoReplyEnabled", true);
     }
 
@@ -279,6 +283,40 @@ class InboundWhatsAppServiceTest {
                 "wamid.12", "919876543210", "Rohit", "hi")));
         // Still filed and still recorded — only the claim of delivery is withheld.
         verify(lifecycle).recordInbound(any(), eq("hi"), any());
+    }
+
+    @Test
+    @DisplayName("a student who names a course has it filed against them")
+    void namedCoursesAreRecorded() {
+        Lead lead = Lead.builder().id("l1").fullName("Rohit").optedOut(false)
+                .createdAt(LocalDateTime.now().minusDays(1)).build();
+        when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(lead));
+        when(courseMatcher.match("I want do java Developer course")).thenReturn(
+                java.util.Optional.of(com.devanshedutech.model.Course.builder()
+                        .id("4").name("Full Stack Java Development").build()));
+
+        service.handle(new InboundWhatsAppService.Incoming(
+                "wamid.13", "919876543210", "Rohit", "I want do java Developer course"));
+
+        assertEquals("Full Stack Java Development", lead.getCourseInterested());
+        assertEquals("4", lead.getCourseId());
+    }
+
+    @Test
+    @DisplayName("a course a counsellor already confirmed is never overwritten")
+    void aKnownCourseIsLeftAlone() {
+        // A counsellor who confirmed the course on a call knows more than a phrase in a message,
+        // and a student mentioning another course in passing must not silently move them.
+        Lead lead = Lead.builder().id("l1").fullName("Rohit").optedOut(false)
+                .courseInterested("Software Testing").courseId("5")
+                .createdAt(LocalDateTime.now().minusDays(1)).build();
+        when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(lead));
+
+        service.handle(new InboundWhatsAppService.Incoming(
+                "wamid.14", "919876543210", "Rohit", "is java also available?"));
+
+        assertEquals("Software Testing", lead.getCourseInterested());
+        verify(courseMatcher, never()).match(any());
     }
 
     @Test

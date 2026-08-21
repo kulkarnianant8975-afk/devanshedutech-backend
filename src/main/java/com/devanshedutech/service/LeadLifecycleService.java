@@ -44,7 +44,23 @@ public class LeadLifecycleService {
     /** Words that mean a student is ready to move, per the SOP's Hot signals. */
     private static final List<String> BUYING_SIGNALS = List.of(
             "fee", "fees", "price", "cost", "batch", "admission", "join", "enrol", "enroll",
-            "demo", "visit", "seat", "instal", "emi", "start date", "timing");
+            "demo", "visit", "seat", "instal", "emi", "start date", "timing",
+            // Stated intent. A student who says which course they want is telling you more than
+            // one who asks the timings, and was previously not counted at all.
+            "i want", "want to do", "want to join", "want to learn", "interested in",
+            "how to apply", "how do i join", "sign me up", "count me in");
+
+    /**
+     * Phrases that turn a buying signal into its opposite.
+     *
+     * <p>Checked first, because "I don't want this" and "please stop" both contain words from the
+     * list above. Promoting somebody to Hot for asking to be left alone would put them at the top
+     * of a counsellor's day for exactly the wrong reason.</p>
+     */
+    private static final List<String> NOT_BUYING = List.of(
+            "not interested", "no longer interested", "don't want", "dont want", "do not want",
+            "stop", "unsubscribe", "remove me", "wrong number", "already joined",
+            "not looking", "no thanks", "no thank you");
 
     private final LeadRepository leadRepository;
     private final LeadActivityRepository activityRepository;
@@ -200,6 +216,7 @@ public class LeadLifecycleService {
     private boolean looksLikeBuyingSignal(String text) {
         if (text == null || text.isBlank()) return false;
         String t = text.toLowerCase(Locale.ROOT);
+        if (NOT_BUYING.stream().anyMatch(t::contains)) return false;
         return BUYING_SIGNALS.stream().anyMatch(t::contains);
     }
 

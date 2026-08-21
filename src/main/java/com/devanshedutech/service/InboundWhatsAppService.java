@@ -49,18 +49,20 @@ public class InboundWhatsAppService {
     private final LeadCaptureService capture;
     private final LeadLifecycleService lifecycle;
     private final SendPackService packs;
+    private final CourseMatcher courseMatcher;
 
     @Value("${app.crm.whatsapp.auto-reply:true}")
     private boolean autoReplyEnabled;
 
     public InboundWhatsAppService(InboundMessageRepository inbound, LeadRepository leads,
                                   LeadCaptureService capture, LeadLifecycleService lifecycle,
-                                  SendPackService packs) {
+                                  SendPackService packs, CourseMatcher courseMatcher) {
         this.inbound = inbound;
         this.leads = leads;
         this.capture = capture;
         this.lifecycle = lifecycle;
         this.packs = packs;
+        this.courseMatcher = courseMatcher;
     }
 
     /** One message, already pulled out of Meta's envelope. */
@@ -137,6 +139,10 @@ public class InboundWhatsAppService {
                 .receivedAt(LocalDateTime.now())
                 .build());
 
+        // Read the course out of what they wrote, before the reply is recorded, so the timeline
+        // reads in the order it happened.
+        noteCourse(lead, message.text());
+
         // Everything a reply means — the reply window, the grade promotion on a buying signal,
         // reopening a lost lead, today's next touch — already lives here.
         lifecycle.recordInbound(lead, message.text(), LeadLifecycleService.Actor.system());
@@ -206,6 +212,30 @@ public class InboundWhatsAppService {
         if (!firstOfConversation) return false;
         if (Boolean.TRUE.equals(lead.getOptedOut())) return false;
         return true;
+    }
+
+    /**
+     * Fills in the course when a student names one and we do not already know it.
+     *
+     * <p>Never overwrites. A counsellor who confirmed the course on a call knows more than a
+     * phrase in a message, and a student mentioning another course in passing must not silently
+     * move them.</p>
+     */
+    private void noteCourse(Lead lead, String text) {
+        if (lead.getCourseInterested() != null && !lead.getCourseInterested().isBlank()) return;
+
+        courseMatcher.match(text).ifPresent(course -> {
+            lead.setCourseInterested(course.getName());
+            lead.setCourseId(course.getId());
+            leads.save(lead);
+            lifecycle.log(lead, com.devanshedutech.model.crm.ActivityType.SYSTEM, null,
+                    com.devanshedutech.model.crm.Direction.INTERNAL,
+                    "Course identified",
+                    "They said they want " + course.getName() + ", so the lead is now filed under "
+                    + "it — the message packs and the course brochure follow from this.",
+                    LeadLifecycleService.Actor.system());
+            log.info("Lead {} matched to course {}", lead.getId(), course.getName());
+        });
     }
 
     private void autoReply(Lead lead) {
