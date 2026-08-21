@@ -119,6 +119,29 @@ jobs:
           grep -q '^BACKEND_TAG=' .env || { echo "::error::BACKEND_TAG is not set in .env."; exit 1; }
           [ -d frontend/current ] || { echo "::error::frontend/current is missing."; exit 1; }
           docker compose config -q || { echo "::error::the compose file does not parse."; exit 1; }
+
+          # The timezone migration must have run before this code starts. TimeZoneConfig calls
+          # TimeZone.setDefault at startup, so the application moves to IST whatever the container
+          # says — and if the five wall-clock columns have not been shifted, old and new rows end
+          # up five and a half hours apart with nothing to indicate it. Checked rather than
+          # trusted, because the failure is silent and permanent.
+          APPLIED=$(docker exec dvt-postgres psql -U devanshedutech -d devanshedutech -tAc \
+            "select count(*) from schema_migrations where name='utc-to-ist-timestamps'" 2>/dev/null || echo "0")
+          if [ "$APPLIED" != "1" ]; then
+            echo "::error::The utc-to-ist-timestamps migration has not run. Deploying now would"
+            echo "::error::leave existing timestamps 5h30m behind every new one. See"
+            echo "::error::deploy/MIGRATION-utc-to-ist.sql — run it with dvt-backend stopped."
+            exit 1
+          fi
+          echo "Timezone migration: applied."
+
+          # Same reasoning for the settings the CRM needs. Without them the application starts
+          # perfectly and quietly does nothing — no WhatsApp, no webhook, no super admin — which
+          # is harder to notice than a crash.
+          for KEY in CRM_TIMEZONE PUBLIC_BASE_URL SUPER_ADMIN_EMAILS WHATSAPP_APP_SECRET; do
+            grep -q "^$KEY=." .env || { echo "::error::$KEY is missing from .env"; exit 1; }
+          done
+          echo "Required settings: present." 
           echo "Pre-flight passed. Current tag: $(grep '^BACKEND_TAG=' .env)"
           EOF
 
