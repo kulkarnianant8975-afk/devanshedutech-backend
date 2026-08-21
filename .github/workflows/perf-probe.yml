@@ -89,3 +89,29 @@ jobs:
             curl -sSI --compressed "$SITE$asset" \
               | grep -iE 'content-encoding|cache-control|content-length|^HTTP' | sed 's/^/    /'
           done
+
+      - name: Is the live bundle actually the current one
+        env:
+          SITE: ${{ inputs.site }}
+        run: |
+          # The decisive question. "My Day", "Pipeline" and "Student Leads" are gated on the same
+          # permission, so a menu showing one but not the others cannot come from current code —
+          # it can only be an older bundle. This says whether the old bundle is what the server
+          # sends, or what a browser kept.
+          echo "== index.html as the server sends it =="
+          curl -sSI "$SITE/" | grep -iE '^HTTP|cache-control|etag|last-modified|age|cf-cache' | sed 's/^/  /'
+          echo
+          curl -sS --compressed "$SITE/" -o live.html
+          MAIN=$(grep -o '/assets/index-[A-Za-z0-9_-]*\.js' live.html | head -1)
+          echo "  index.html points at: $MAIN"
+          echo
+          echo "== what that bundle contains =="
+          curl -sS --compressed "$SITE$MAIN" -o main.js
+          for phrase in 'My Day' 'Media Library' 'Hours & Duty' 'Message Scripts' 'Student Leads' 'Add a student'; do
+            if grep -qF "$phrase" main.js; then echo "  PRESENT  $phrase"; else echo "  MISSING  $phrase"; fi
+          done
+          echo
+          echo "== service worker =="
+          curl -sS -o sw.js -w '  /sw.js -> %{http_code}, %{size_download} bytes\n' "$SITE/sw.js"
+          # A precached index.html is how a browser keeps serving last week's app forever.
+          grep -o 'index.html' sw.js | head -1 | sed 's/^/  sw precaches: /' || echo "  sw does not name index.html"
