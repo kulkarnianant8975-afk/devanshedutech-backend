@@ -5,6 +5,10 @@ import com.devanshedutech.model.InboundMessage;
 import com.devanshedutech.model.Lead;
 import com.devanshedutech.model.crm.LeadSource;
 import com.devanshedutech.repository.InboundMessageRepository;
+import com.devanshedutech.channel.WhatsAppChannel;
+import com.devanshedutech.channel.WhatsAppSender;
+import com.devanshedutech.model.Course;
+import com.devanshedutech.repository.CourseRepository;
 import com.devanshedutech.repository.LeadRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +34,9 @@ class InboundWhatsAppServiceTest {
     private LeadLifecycleService lifecycle;
     private SendPackService packs;
     private CourseMatcher courseMatcher;
+    private CourseRepository courses;
+    private WhatsAppSender sender;
+    private WhatsAppChannel channel;
     private InboundWhatsAppService service;
 
     private Map<String, InboundMessage> seen;
@@ -44,6 +51,15 @@ class InboundWhatsAppServiceTest {
         courseMatcher = mock(CourseMatcher.class);
         // These tests are about capture and replying; course matching has its own suite.
         when(courseMatcher.match(any())).thenReturn(java.util.Optional.empty());
+
+        courses = mock(CourseRepository.class);
+        when(courses.findAll()).thenReturn(List.of(
+                Course.builder().id("4").name("Full Stack Java Development").duration("6 months").build()));
+        sender = mock(WhatsAppSender.class);
+        channel = mock(WhatsAppChannel.class);
+        when(sender.active()).thenReturn(channel);
+        // Default to a channel with no menus, so the existing tests still exercise the text path.
+        when(channel.supportsMenus()).thenReturn(false);
 
         seen = new HashMap<>();
         when(inbound.existsById(anyString())).thenAnswer(i -> seen.containsKey(i.getArgument(0)));
@@ -60,7 +76,8 @@ class InboundWhatsAppServiceTest {
                     .notes(r.getNotes()).optedOut(false).build(), false);
         });
 
-        service = new InboundWhatsAppService(inbound, leads, capture, lifecycle, packs, courseMatcher);
+        service = new InboundWhatsAppService(inbound, leads, capture, lifecycle, packs, courseMatcher,
+                courses, sender);
         ReflectionTestUtils.setField(service, "autoReplyEnabled", true);
     }
 
@@ -150,8 +167,7 @@ class InboundWhatsAppServiceTest {
     @Test
     @DisplayName("a student who messages first becomes a lead, credited to WhatsApp")
     void firstMessageCreatesALead() {
-        service.handle(new InboundWhatsAppService.Incoming(
-                "wamid.1", "919876543210", "Rohit", "is there a batch in August?"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.1", "919876543210", "Rohit", "is there a batch in August?", null));
 
         LeadRequest r = capturedRequest();
         assertEquals("Rohit", r.getFullName());
@@ -167,7 +183,7 @@ class InboundWhatsAppServiceTest {
                 .createdAt(LocalDateTime.now().minusDays(3)).optedOut(false).build();
         when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(existing));
 
-        service.handle(new InboundWhatsAppService.Incoming("wamid.2", "919876543210", "Rohit", "hi"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.2", "919876543210", "Rohit", "hi", null));
 
         verify(capture, never()).capture(any(), any());
         verify(lifecycle).recordInbound(eq(existing), eq("hi"), any());
@@ -178,7 +194,7 @@ class InboundWhatsAppServiceTest {
     void redeliveriesAreIgnored() {
         // Meta retries whenever it does not get a prompt 200 — after a timeout, a restart, a slow
         // query. Without this, one "hi" during a deploy is two leads and two auto-replies.
-        var message = new InboundWhatsAppService.Incoming("wamid.3", "919876543210", "Rohit", "hi");
+        var message = new InboundWhatsAppService.Incoming("wamid.3", "919876543210", "Rohit", "hi", null);
 
         assertTrue(service.handle(message).isPresent());
         assertTrue(service.handle(message).isEmpty(), "the retry is recognised");
@@ -190,8 +206,7 @@ class InboundWhatsAppServiceTest {
     @Test
     @DisplayName("the reply, the window and the grade are all recorded")
     void everythingAReplyMeansIsRecorded() {
-        service.handle(new InboundWhatsAppService.Incoming(
-                "wamid.4", "919876543210", "Rohit", "what are the fees"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.4", "919876543210", "Rohit", "what are the fees", null));
         // Delegated rather than reimplemented: the buying-signal promotion, the reply window and
         // today's next touch all live in one place already.
         verify(lifecycle).recordInbound(any(), eq("what are the fees"), any());
@@ -202,7 +217,7 @@ class InboundWhatsAppServiceTest {
     @Test
     @DisplayName("the opening message gets an automatic reply")
     void conversationsOpenWithAReply() {
-        service.handle(new InboundWhatsAppService.Incoming("wamid.5", "919876543210", "Rohit", "hi"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.5", "919876543210", "Rohit", "hi", null));
         verify(packs).send(any(), eq("auto_reply"), any(), any(), any());
     }
 
@@ -217,7 +232,7 @@ class InboundWhatsAppServiceTest {
                 .createdAt(LocalDateTime.now().minusDays(1)).optedOut(false).build();
         when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(talking));
 
-        service.handle(new InboundWhatsAppService.Incoming("wamid.6", "919876543210", "Rohit", "yes 6pm works"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.6", "919876543210", "Rohit", "yes 6pm works", null));
 
         verify(packs, never()).send(any(), anyString(), any(), any(), any());
     }
@@ -230,7 +245,7 @@ class InboundWhatsAppServiceTest {
                 .createdAt(LocalDateTime.now().minusDays(60)).optedOut(false).build();
         when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(old));
 
-        service.handle(new InboundWhatsAppService.Incoming("wamid.7", "919876543210", "Rohit", "is the batch open?"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.7", "919876543210", "Rohit", "is the batch open?", null));
 
         verify(packs).send(any(), eq("auto_reply"), any(), any(), any());
     }
@@ -242,7 +257,7 @@ class InboundWhatsAppServiceTest {
                 .createdAt(LocalDateTime.now().minusDays(5)).build();
         when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(quiet));
 
-        service.handle(new InboundWhatsAppService.Incoming("wamid.8", "919876543210", "Rohit", "stop"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.8", "919876543210", "Rohit", "stop", null));
 
         verify(packs, never()).send(any(), anyString(), any(), any(), any());
     }
@@ -251,7 +266,7 @@ class InboundWhatsAppServiceTest {
     @DisplayName("auto-reply can be turned off without losing the capture")
     void autoReplyIsOptional() {
         ReflectionTestUtils.setField(service, "autoReplyEnabled", false);
-        service.handle(new InboundWhatsAppService.Incoming("wamid.9", "919876543210", "Rohit", "hi"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.9", "919876543210", "Rohit", "hi", null));
 
         verify(packs, never()).send(any(), anyString(), any(), any(), any());
         verify(capture).capture(any(), any());
@@ -266,7 +281,7 @@ class InboundWhatsAppServiceTest {
                 .when(packs).send(any(), anyString(), any(), any(), any());
 
         assertDoesNotThrow(() -> service.handle(
-                new InboundWhatsAppService.Incoming("wamid.10", "919876543210", "Rohit", "hi")));
+                new InboundWhatsAppService.Incoming("wamid.10", "919876543210", "Rohit", "hi", null)));
         verify(lifecycle).recordInbound(any(), eq("hi"), any());
     }
 
@@ -279,8 +294,7 @@ class InboundWhatsAppServiceTest {
                 new SendPackService.SendOutcome(false, "failed",
                         "That number is not on the test number's allowed list.", null, "WhatsApp Cloud API"));
 
-        assertDoesNotThrow(() -> service.handle(new InboundWhatsAppService.Incoming(
-                "wamid.12", "919876543210", "Rohit", "hi")));
+        assertDoesNotThrow(() -> service.handle(new InboundWhatsAppService.Incoming("wamid.12", "919876543210", "Rohit", "hi", null)));
         // Still filed and still recorded — only the claim of delivery is withheld.
         verify(lifecycle).recordInbound(any(), eq("hi"), any());
     }
@@ -295,8 +309,7 @@ class InboundWhatsAppServiceTest {
                 java.util.Optional.of(com.devanshedutech.model.Course.builder()
                         .id("4").name("Full Stack Java Development").build()));
 
-        service.handle(new InboundWhatsAppService.Incoming(
-                "wamid.13", "919876543210", "Rohit", "I want do java Developer course"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.13", "919876543210", "Rohit", "I want do java Developer course", null));
 
         assertEquals("Full Stack Java Development", lead.getCourseInterested());
         assertEquals("4", lead.getCourseId());
@@ -312,17 +325,93 @@ class InboundWhatsAppServiceTest {
                 .createdAt(LocalDateTime.now().minusDays(1)).build();
         when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(lead));
 
-        service.handle(new InboundWhatsAppService.Incoming(
-                "wamid.14", "919876543210", "Rohit", "is java also available?"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.14", "919876543210", "Rohit", "is java also available?", null));
 
         assertEquals("Software Testing", lead.getCourseInterested());
         verify(courseMatcher, never()).match(any());
     }
 
     @Test
+    @DisplayName("the opening message offers a course menu where the channel can send one")
+    void openingMessageOffersTheMenu() {
+        when(channel.supportsMenus()).thenReturn(true);
+        when(channel.sendMenu(any(), any(), any(), any()))
+                .thenReturn(WhatsAppChannel.SendResult.accepted("Course menu sent."));
+
+        service.handle(new InboundWhatsAppService.Incoming("wamid.20", "919876543210", "Rohit", "hi", null));
+
+        verify(channel).sendMenu(any(), any(), any(), any());
+        // A menu asks the only question that matters; the introduction would ask nothing.
+        verify(packs, never()).send(any(), eq("auto_reply"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("a channel that cannot send menus falls back to the written introduction")
+    void menulessChannelsStillReply() {
+        service.handle(new InboundWhatsAppService.Incoming("wamid.21", "919876543210", "Rohit", "hi", null));
+        verify(packs).send(any(), eq("auto_reply"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("a menu that fails to send falls back rather than leaving silence")
+    void aFailedMenuFallsBack() {
+        when(channel.supportsMenus()).thenReturn(true);
+        when(channel.sendMenu(any(), any(), any(), any()))
+                .thenReturn(WhatsAppChannel.SendResult.failed("rejected"));
+
+        service.handle(new InboundWhatsAppService.Incoming("wamid.22", "919876543210", "Rohit", "hi", null));
+        verify(packs).send(any(), eq("auto_reply"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("tapping a course files it and sends that course's details")
+    void tappingACourseSendsItsDetails() {
+        Lead lead = Lead.builder().id("l1").fullName("Rohit").optedOut(false)
+                .lastInboundAt(LocalDateTime.now().minusMinutes(2))
+                .createdAt(LocalDateTime.now().minusDays(1)).build();
+        when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(lead));
+        when(courses.findById("4")).thenReturn(java.util.Optional.of(
+                Course.builder().id("4").name("Full Stack Java Development").build()));
+
+        service.handle(new InboundWhatsAppService.Incoming(
+                "wamid.23", "919876543210", "Rohit", "Full Stack Java Devel…", "course:4"));
+
+        assertEquals("Full Stack Java Development", lead.getCourseInterested());
+        assertEquals("4", lead.getCourseId());
+        verify(packs).send(any(), eq("course_chosen"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("a tap overrides a course guessed from free text")
+    void aTapBeatsAGuess() {
+        // The student said it themselves. Anything inferred earlier was only ever a guess.
+        Lead lead = Lead.builder().id("l1").fullName("Rohit").optedOut(false)
+                .courseInterested("Software Testing").courseId("5")
+                .lastInboundAt(LocalDateTime.now().minusMinutes(2))
+                .createdAt(LocalDateTime.now().minusDays(1)).build();
+        when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(lead));
+        when(courses.findById("4")).thenReturn(java.util.Optional.of(
+                Course.builder().id("4").name("Full Stack Java Development").build()));
+
+        service.handle(new InboundWhatsAppService.Incoming(
+                "wamid.24", "919876543210", "Rohit", "Java", "course:4"));
+
+        assertEquals("Full Stack Java Development", lead.getCourseInterested());
+    }
+
+    @Test
+    @DisplayName("a tap naming a course that no longer exists changes nothing")
+    void unknownSelectionsAreIgnored() {
+        when(courses.findById("999")).thenReturn(java.util.Optional.empty());
+        service.handle(new InboundWhatsAppService.Incoming(
+                "wamid.25", "919876543210", "Rohit", "Old course", "course:999"));
+        verify(packs, never()).send(any(), eq("course_chosen"), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("a student with no WhatsApp name is labelled honestly")
     void missingProfileNamesAreHandled() {
-        service.handle(new InboundWhatsAppService.Incoming("wamid.11", "919876543210", null, "hi"));
+        service.handle(new InboundWhatsAppService.Incoming("wamid.11", "919876543210", null, "hi", null));
         assertEquals("WhatsApp enquiry", capturedRequest().getFullName());
     }
 }

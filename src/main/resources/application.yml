@@ -162,6 +162,10 @@ app:
       # Reply automatically to a student who messages first. Only ever on the opening message of
       # a conversation, never in the middle of one a counsellor is already having.
       auto-reply: ${WHATSAPP_AUTO_REPLY:true}
+      # How long a silence counts as the student starting a fresh conversation. The auto-reply
+      # only fires on an opening message, so this is what stops the institute re-sending the
+      # course list every time somebody answers a question. Lower it to test the flow.
+      conversation-gap-minutes: ${WHATSAPP_CONVERSATION_GAP_MINUTES:1440}
       aisensy:
         # Set this and the swipe sends to the student directly. Leave it empty and the message
         # opens in the counsellor's own WhatsApp instead, so the product works either way.

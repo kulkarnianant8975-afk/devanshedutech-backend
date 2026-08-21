@@ -36,6 +36,28 @@ public interface WhatsAppChannel {
         }
     }
 
+    /** One choice in a menu the student taps. */
+    record MenuRow(String id, String title, String description) {}
+
+    /**
+     * Whether this channel can put a tappable menu in front of a student.
+     *
+     * <p>Only the Cloud API can. A hand-off to a counsellor's own WhatsApp cannot, so callers
+     * fall back to plain text rather than silently sending nothing.</p>
+     */
+    default boolean supportsMenus() { return false; }
+
+    /**
+     * Sends a list the student picks from.
+     *
+     * <p>Worth its own method rather than a formatted text message: a tap gives an unambiguous
+     * answer, where "java" typed into a chat has to be guessed at. It only works inside the
+     * twenty-four hour window, which an inbound message has just opened.</p>
+     */
+    default SendResult sendMenu(String toPhone, String body, String buttonLabel, List<MenuRow> rows) {
+        return SendResult.failed("This channel cannot send a menu.");
+    }
+
     /** A short name for the timeline and the logs. */
     String name();
 

@@ -145,6 +145,63 @@ public class MetaCloudChannel implements WhatsAppChannel {
         return SendResult.accepted(String.join(" ", notes));
     }
 
+    @Override
+    public boolean supportsMenus() { return true; }
+
+    /**
+     * Sends a tappable list of choices.
+     *
+     * <p>WhatsApp's limits are tight and silent — a row title over 24 characters, or more than
+     * ten rows, and the whole message is rejected. Course names here run to 29 characters, so
+     * the title is trimmed and the full name carried in the description, where there is room.</p>
+     */
+    @Override
+    public SendResult sendMenu(String toPhone, String body, String buttonLabel, List<MenuRow> rows) {
+        if (!canSendAutomatically()) {
+            return SendResult.failed("WhatsApp is not connected.");
+        }
+        String to = PhoneNumbers.toWhatsApp(toPhone);
+        if (to == null) return SendResult.failed("This lead has no usable phone number.");
+        if (rows == null || rows.isEmpty()) return SendResult.failed("A menu needs at least one choice.");
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (MenuRow row : rows.stream().limit(MAX_MENU_ROWS).toList()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", cut(row.id(), 200));
+            item.put("title", cut(row.title(), 24));
+            if (row.description() != null && !row.description().isBlank()) {
+                item.put("description", cut(row.description(), 72));
+            }
+            items.add(item);
+        }
+
+        Map<String, Object> interactive = new LinkedHashMap<>();
+        interactive.put("type", "list");
+        interactive.put("body", Map.of("text", cut(body, 1024)));
+        interactive.put("action", Map.of(
+                "button", cut(buttonLabel, 20),
+                "sections", List.of(Map.of("title", "Courses", "rows", items))));
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("messaging_product", "whatsapp");
+        payload.put("recipient_type", "individual");
+        payload.put("to", to);
+        payload.put("type", "interactive");
+        payload.put("interactive", interactive);
+
+        SendResult result = post(to, payload, "course menu");
+        return result.sent() ? SendResult.accepted("Course menu sent.") : result;
+    }
+
+    /** WhatsApp rejects a list with more rows than this — the whole message, not the extras. */
+    private static final int MAX_MENU_ROWS = 10;
+
+    private static String cut(String s, int max) {
+        if (s == null) return "";
+        String t = s.trim();
+        return t.length() <= max ? t : t.substring(0, max - 1).trim() + "\u2026";
+    }
+
     /**
      * Opens a conversation with the approved template.
      *

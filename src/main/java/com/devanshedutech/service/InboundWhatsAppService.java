@@ -36,13 +36,25 @@ public class InboundWhatsAppService {
     /** The pack sent automatically. Editable in the product like any other. */
     private static final String AUTO_REPLY_PACK = "auto_reply";
 
+    /** Sent once a student has picked a course, so it can name and attach the right one. */
+    private static final String COURSE_CHOSEN_PACK = "course_chosen";
+
+    /** Prefix on a menu row id, so a tap is never confused with anything else. */
+    private static final String COURSE_ROW = "course:";
+
     /**
-     * A message this long after the previous one starts a fresh conversation.
+     * A gap this long means the student is starting a fresh conversation rather than continuing.
      *
-     * <p>Matches WhatsApp's own free-reply window, which is the natural boundary: if the window
-     * had closed, the student is starting again rather than continuing.</p>
+     * <p>Defaults to WhatsApp's own free-reply window, which is the natural boundary: if the
+     * window had closed, they are starting again. Configurable mainly so the flow can be
+     * exercised without waiting a day between messages — set it to a minute while testing.</p>
      */
-    private static final Duration NEW_CONVERSATION = Duration.ofHours(24);
+    private Duration newConversation = Duration.ofHours(24);
+
+    @Value("${app.crm.whatsapp.conversation-gap-minutes:1440}")
+    void setConversationGapMinutes(long minutes) {
+        this.newConversation = Duration.ofMinutes(Math.max(1, minutes));
+    }
 
     private final InboundMessageRepository inbound;
     private final LeadRepository leads;
@@ -50,23 +62,33 @@ public class InboundWhatsAppService {
     private final LeadLifecycleService lifecycle;
     private final SendPackService packs;
     private final CourseMatcher courseMatcher;
+    private final com.devanshedutech.repository.CourseRepository courses;
+    private final com.devanshedutech.channel.WhatsAppSender sender;
 
     @Value("${app.crm.whatsapp.auto-reply:true}")
     private boolean autoReplyEnabled;
 
     public InboundWhatsAppService(InboundMessageRepository inbound, LeadRepository leads,
                                   LeadCaptureService capture, LeadLifecycleService lifecycle,
-                                  SendPackService packs, CourseMatcher courseMatcher) {
+                                  SendPackService packs, CourseMatcher courseMatcher,
+                                  com.devanshedutech.repository.CourseRepository courses,
+                                  com.devanshedutech.channel.WhatsAppSender sender) {
         this.inbound = inbound;
         this.leads = leads;
         this.capture = capture;
         this.lifecycle = lifecycle;
         this.packs = packs;
         this.courseMatcher = courseMatcher;
+        this.courses = courses;
+        this.sender = sender;
     }
 
     /** One message, already pulled out of Meta's envelope. */
-    public record Incoming(String messageId, String fromPhone, String profileName, String text) {}
+    public record Incoming(String messageId, String fromPhone, String profileName, String text,
+                           String selectionId) {
+        /** A student who tapped a menu row rather than typing. */
+        public boolean isSelection() { return selectionId != null && !selectionId.isBlank(); }
+    }
 
     /**
      * Reads Meta's webhook body into the messages it contains.
@@ -110,7 +132,7 @@ public class InboundWhatsAppService {
                     String from = str(m.get("from"));
                     if (id == null || from == null) continue;
 
-                    out.add(new Incoming(id, from, profileName, textOf(m)));
+                    out.add(new Incoming(id, from, profileName, textOf(m), selectionOf(m)));
                 }
             }
         }
@@ -139,15 +161,23 @@ public class InboundWhatsAppService {
                 .receivedAt(LocalDateTime.now())
                 .build());
 
-        // Read the course out of what they wrote, before the reply is recorded, so the timeline
-        // reads in the order it happened.
-        noteCourse(lead, message.text());
+        // A tap is unambiguous, so it is honoured ahead of anything read out of free text.
+        boolean chose = message.isSelection() && applySelection(lead, message.selectionId());
+        if (!chose) {
+            // Read the course out of what they wrote, before the reply is recorded, so the
+            // timeline reads in the order it happened.
+            noteCourse(lead, message.text());
+        }
 
         // Everything a reply means — the reply window, the grade promotion on a buying signal,
         // reopening a lost lead, today's next touch — already lives here.
         lifecycle.recordInbound(lead, message.text(), LeadLifecycleService.Actor.system());
 
-        if (shouldAutoReply(lead, firstOfConversation)) {
+        if (chose) {
+            // They have told us what they want. Send that course's syllabus and fees rather than
+            // the introduction again, and leave the rest to a counsellor.
+            sendPack(lead, COURSE_CHOSEN_PACK);
+        } else if (shouldAutoReply(lead, firstOfConversation)) {
             autoReply(lead);
         }
         return Optional.of(lead);
@@ -193,7 +223,7 @@ public class InboundWhatsAppService {
      */
     private boolean startsAConversation(Lead lead) {
         LocalDateTime last = lead.getLastInboundAt();
-        return last == null || Duration.between(last, LocalDateTime.now()).compareTo(NEW_CONVERSATION) >= 0;
+        return last == null || Duration.between(last, LocalDateTime.now()).compareTo(newConversation) >= 0;
     }
 
     /**
@@ -238,10 +268,74 @@ public class InboundWhatsAppService {
         });
     }
 
+    /**
+     * Records the course a student tapped.
+     *
+     * <p>Overwrites whatever was assumed from free text, because a tap is the student saying it
+     * themselves rather than us inferring it.</p>
+     */
+    private boolean applySelection(Lead lead, String selectionId) {
+        if (!selectionId.startsWith(COURSE_ROW)) return false;
+        String courseId = selectionId.substring(COURSE_ROW.length());
+
+        return courses.findById(courseId).map(course -> {
+            lead.setCourseInterested(course.getName());
+            lead.setCourseId(course.getId());
+            leads.save(lead);
+            lifecycle.log(lead, com.devanshedutech.model.crm.ActivityType.WHATSAPP, null,
+                    com.devanshedutech.model.crm.Direction.INBOUND,
+                    "Chose " + course.getName(),
+                    "They picked it from the menu, so this is what they want — not a guess.",
+                    LeadLifecycleService.Actor.system());
+            log.info("Lead {} chose course {}", lead.getId(), course.getName());
+            return true;
+        }).orElse(false);
+    }
+
+    /**
+     * The opening reply: a tappable list of courses where the channel allows one.
+     *
+     * <p>A tap answers the only question that matters at this point — which course — and answers
+     * it unambiguously. Typed free text has to be guessed at, and "full stack" describes three of
+     * them. Where menus are not available the plain introduction goes instead.</p>
+     */
     private void autoReply(Lead lead) {
+        if (sender.active().supportsMenus() && sendCourseMenu(lead)) return;
+        sendPack(lead, AUTO_REPLY_PACK);
+    }
+
+    private boolean sendCourseMenu(Lead lead) {
+        List<com.devanshedutech.model.Course> catalogue = courses.findAll();
+        if (catalogue.isEmpty()) return false;
+
+        List<com.devanshedutech.channel.WhatsAppChannel.MenuRow> rows = catalogue.stream()
+                .filter(c -> c.getName() != null && !c.getName().isBlank())
+                .map(c -> new com.devanshedutech.channel.WhatsAppChannel.MenuRow(
+                        COURSE_ROW + c.getId(), c.getName(), c.getDuration()))
+                .toList();
+
+        String first = lead.getFullName() == null ? "there" : lead.getFullName().split("\\s+")[0];
+        var result = sender.active().sendMenu(lead.getMobileNumber(),
+                "Hi " + first + "! \uD83D\uDC4B Thanks for messaging Devansh Edu-Tech.\n\n"
+                + "Tap the course you are interested in and I will send you its syllabus and "
+                + "fees straight away. A counsellor will call you shortly.",
+                "Choose a course", rows);
+
+        if (result.sent()) {
+            lifecycle.log(lead, com.devanshedutech.model.crm.ActivityType.WHATSAPP, null,
+                    com.devanshedutech.model.crm.Direction.OUTBOUND,
+                    "Course menu sent", "They were asked to pick a course.",
+                    LeadLifecycleService.Actor.system());
+            return true;
+        }
+        log.warn("Course menu to lead {} was not delivered: {}", lead.getId(), result.detail());
+        return false;
+    }
+
+    private void sendPack(Lead lead, String packKey) {
         try {
             SendPackService.SendOutcome outcome =
-                    packs.send(lead, AUTO_REPLY_PACK, null, null, LeadLifecycleService.Actor.system());
+                    packs.send(lead, packKey, null, null, LeadLifecycleService.Actor.system());
             // Reported as it actually went. A send that WhatsApp refused is already written to
             // the lead's timeline, and a log claiming success would be the one place somebody
             // looks when a student says they never heard back.
@@ -310,6 +404,22 @@ public class InboundWhatsAppService {
         }
         String type = str(m.get("type"));
         return "[" + (type == null ? "message" : type) + " — open WhatsApp to view it]";
+    }
+
+    /**
+     * The id of a menu row the student tapped, if they tapped one.
+     *
+     * <p>The id is used rather than the visible label because the label is truncated to fit
+     * WhatsApp's limits — matching on it would mean matching on a shortened string.</p>
+     */
+    @SuppressWarnings("unchecked")
+    private String selectionOf(Map<String, Object> m) {
+        Object interactive = m.get("interactive");
+        if (!(interactive instanceof Map<?, ?> i)) return null;
+        Object reply = ((Map<String, Object>) i).get("list_reply");
+        if (reply == null) reply = ((Map<String, Object>) i).get("button_reply");
+        if (!(reply instanceof Map<?, ?> r)) return null;
+        return str(((Map<String, Object>) r).get("id"));
     }
 
     private static String str(Object o) {

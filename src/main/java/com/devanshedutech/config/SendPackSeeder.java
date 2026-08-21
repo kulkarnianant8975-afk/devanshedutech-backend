@@ -45,6 +45,15 @@ public class SendPackSeeder {
                   + "A counsellor will call you shortly to help you choose.",
                     "brochure_general", true);
 
+            pack(packs, "course_chosen", "After they pick a course",
+                    "Sent the moment a student taps a course from the WhatsApp menu",
+                    "Great choice, {{first_name}} \uD83D\uDC4D\n\n"
+                  + "Here is everything for {{course}} — the syllabus, the fees with instalment "
+                  + "options, and a link to book a free demo class.\n\n"
+                  + "Next batch: {{batch}}. A counsellor will call you shortly to answer anything "
+                  + "you want to ask.",
+                    "syllabus,demo_link", true);
+
             pack(packs, "guidance", "Post-call guidance pack",
                     "SOP section 4, step 5 — never end a call vague",
                     "Great speaking with you, {{first_name}}! 😊 As promised, here is everything for "
