@@ -39,11 +39,18 @@ spring:
 
   servlet:
     multipart:
-      # WhatsApp accepts documents up to 100 MB and video up to 16 MB, so the upload has to
-      # allow the larger of them. The per-type limits are enforced in AssetController, which can
-      # explain the refusal; exceeding this one produces a framework error that cannot.
-      max-file-size: 100MB
-      max-request-size: 105MB
+      # Deliberately ABOVE every per-type limit in AssetController, not equal to the largest.
+      #
+      # That controller can explain a refusal — it names the size, the limit, whose limit it is
+      # and what to do instead. This one cannot: exceeding it throws inside the dispatcher before
+      # any controller runs, and the counsellor gets a bare "something went wrong". On
+      # 2026-08-21 a 126 MB video hit exactly that, because the media library offers 200 MB
+      # videos while this still said 100.
+      #
+      # So the rule is: whichever limit is lower does the talking. Keeping this one higher means
+      # that is always the controller. Raise it whenever a per-type limit goes up.
+      max-file-size: 210MB
+      max-request-size: 220MB
 
   security:
     oauth2:

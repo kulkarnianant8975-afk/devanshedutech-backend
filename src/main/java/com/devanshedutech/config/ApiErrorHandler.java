@@ -70,6 +70,30 @@ public class ApiErrorHandler {
     }
 
     /**
+     * A file too large for the framework to even parse.
+     *
+     * <p>This is thrown inside the dispatcher, before any controller method runs, so
+     * AssetController's careful explanation — the size, the limit, whose limit it is, what to do
+     * instead — never gets the chance to speak. Without this handler it lands in the catch-all
+     * below and a counsellor is told "something went wrong at our end" about a perfectly ordinary
+     * file that is simply too big.</p>
+     *
+     * <p>The multipart limits are deliberately set above every per-type limit so that the
+     * controller normally answers first. This is the backstop for when it does not.</p>
+     */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleTooLarge(
+            org.springframework.web.multipart.MaxUploadSizeExceededException e,
+            HttpServletRequest request) {
+        log.warn("Upload refused on {} — larger than the server accepts", request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(body(413, "Payload Too Large",
+                        "That file is too large for the server to accept. Videos can be up to "
+                        + "200 MB — for anything bigger, put it on YouTube or Drive and add it "
+                        + "as a link instead.", request));
+    }
+
+    /**
      * Anything unplanned.
      *
      * <p>Logged in full and reported as a fixed sentence. The exception's own message is exactly

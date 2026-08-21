@@ -55,6 +55,17 @@ public class AssetController {
             "PDF",   100L * 1024 * 1024);
 
     /**
+     * The per-type limits, for anything that needs to stay consistent with them.
+     *
+     * <p>Exposed so a test can assert the framework's multipart limit sits above every one of
+     * these. If it does not, files between the two limits are refused by the dispatcher before
+     * this class runs, and the careful explanation below is unreachable.</p>
+     */
+    public static Map<String, Long> limits() {
+        return LIMITS;
+    }
+
+    /**
      * The largest video WhatsApp will carry inside a message.
      *
      * <p>Meta's limit, and not one that can be worked around. A larger file is still perfectly
