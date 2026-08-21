@@ -1,0 +1,81 @@
+name: Server logs
+
+# Reading the server's own account of what went wrong.
+#
+# The API answers an unplanned failure with a fixed sentence — "Something went wrong at our end"
+# — on purpose: the exception's own message carries SQL, file paths and, for a messaging
+# provider, the echoed request including its API key. None of that may travel to a browser. But
+# it is written to the log in full, and without a way to read that log the fixed sentence leaves
+# nobody able to diagnose anything.
+#
+# This runs from GitHub because the office IP is blocked from Hostinger provider-wide — SSH
+# included — so it cannot be read from a laptop at all.
+
+on:
+  workflow_dispatch:
+    inputs:
+      lines:
+        description: How many recent log lines
+        default: '200'
+        required: true
+      grep:
+        description: Only lines matching this (blank for all)
+        default: ''
+        required: false
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up the deploy key and pin the host
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" \
+            | tr -d '\r' \
+            | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+            | grep -v '^$' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          HOST_IN_KEY=$(awk '{print $1}' ~/.ssh/known_hosts | head -1)
+          if [ "$HOST_IN_KEY" != "${{ secrets.VPS_HOST }}" ]; then
+            KEY_PART=$(cut -d' ' -f2- ~/.ssh/known_hosts | head -1)
+            echo "${{ secrets.VPS_HOST }} $KEY_PART" >> ~/.ssh/known_hosts
+          fi
+
+      - name: What the backend has been saying
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          LINES: ${{ inputs.lines }}
+          FILTER: ${{ inputs.grep }}
+        run: |
+          # Secrets are masked by Actions, but a stack trace is not a secret-shaped string, so
+          # the filter exists to keep an unrelated dump out of a shared log by choice.
+          if [ -n "$FILTER" ]; then
+            CMD="docker compose -f /srv/devanshedutech/docker-compose.yml logs --tail $LINES dvt-backend | grep -iE '$FILTER' || echo 'nothing matched'"
+          else
+            CMD="docker compose -f /srv/devanshedutech/docker-compose.yml logs --tail $LINES dvt-backend"
+          fi
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "root@$HOST" "$CMD"
+
+      - name: Whether the media folder can actually be written to
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          # The upload path fails in two ways that read identically from a browser: the file was
+          # refused, or the folder cannot be written at all. This separates them.
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "root@$HOST" '
+            cd /srv/devanshedutech
+            echo "== media folder as the container sees it =="
+            docker compose exec -T dvt-backend ls -ld /var/lib/devansh/media 2>&1 || echo "  could not stat"
+            docker compose exec -T dvt-backend sh -c "touch /var/lib/devansh/media/.probe && echo \"  WRITE OK\" && rm -f /var/lib/devansh/media/.probe" 2>&1 || echo "  WRITE FAILED"
+            echo
+            echo "== how much room is left =="
+            df -h /var/lib/docker | tail -1
+            echo
+            echo "== the size limits actually in force =="
+            docker compose exec -T dvt-backend sh -c "grep -A3 multipart /app/application.yml 2>/dev/null" || echo "  (limits are baked into the jar, not a mounted file)"
+            echo
+            echo "== what the proxy will accept =="
+            grep -n "max_size" frontend/Caddyfile.static 2>/dev/null || echo "  no request_body max_size set in frontend/Caddyfile.static"
+          '
