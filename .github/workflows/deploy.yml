@@ -119,6 +119,9 @@ jobs:
           USER: ${{ secrets.VPS_USER }}
         run: |
           scp -i ~/.ssh/deploy backend-image.tar.gz "$USER@$HOST:/srv/devanshedutech/"
+          # The compose file is version controlled now, so this is its source of truth. Kept
+          # with a dated backup, because it is the file that decides whether the site starts.
+          scp -i ~/.ssh/deploy deploy/docker-compose.vps.yml "$USER@$HOST:/srv/devanshedutech/docker-compose.yml.new"
           # rsync in place rather than swapping the directory: Caddy bind-mounts
           # frontend/current, and moving it would leave the container serving the old inode.
           rsync -az --delete -e "ssh -i ~/.ssh/deploy" \
@@ -138,6 +141,12 @@ jobs:
           # Kept so a bad release can be rolled back by hand in one command.
           PREVIOUS=$(grep '^BACKEND_TAG=' .env | cut -d= -f2)
           echo "Previous tag was $PREVIOUS"
+
+          if [ -f docker-compose.yml.new ]; then
+            cp -a docker-compose.yml "docker-compose.yml.bak-$(date +%Y%m%d-%H%M%S)"
+            mv docker-compose.yml.new docker-compose.yml
+            docker compose config -q || { echo "::error::the new compose file does not parse; restore a .bak"; exit 1; }
+          fi
 
           docker load < backend-image.tar.gz
           rm -f backend-image.tar.gz
