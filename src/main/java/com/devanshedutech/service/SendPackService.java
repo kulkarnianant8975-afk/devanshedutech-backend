@@ -116,6 +116,18 @@ public class SendPackService {
      * rule and believing the software is broken.</p>
      */
     public Prepared prepare(Lead lead, String packKey, String counsellorName) {
+        return prepare(lead, packKey, counsellorName, null);
+    }
+
+    /**
+     * Prepares a pack, optionally with a different set of attachments.
+     *
+     * <p>A pack names sensible defaults for its situation, but a counsellor on a call learns
+     * things a template cannot know — that this student wants the placement record, or the fee
+     * structure rather than the syllabus. When {@code assetKeys} is given it replaces the pack's
+     * list entirely rather than adding to it, so what is sent is exactly what was chosen.</p>
+     */
+    public Prepared prepare(Lead lead, String packKey, String counsellorName, List<String> assetKeys) {
         SendPack pack = byKey(packKey);
 
         Long windowLeft = null;
@@ -130,7 +142,8 @@ public class SendPackService {
         String message = fill(pack.getCoverTemplate(), vars);
 
         List<ResolvedAsset> resolved = new ArrayList<>();
-        for (String key : pack.assets()) {
+        List<String> wanted = assetKeys == null || assetKeys.isEmpty() ? pack.assets() : assetKeys;
+        for (String key : wanted) {
             assets.findByKey(key).filter(Asset::isActive).ifPresent(a -> {
                 String url = fill(a.getUrl(), vars);
                 // A lead's course is free text and may not match the catalogue, which would
@@ -299,10 +312,11 @@ public class SendPackService {
                 ? prepare(lead, packKey, actor == null ? null : actor.name()).message()
                 : editedMessage;
 
-        Prepared prepared = prepare(lead, packKey, actor == null ? null : actor.name());
+        // The list the counsellor chose is definitive. Previously it could only remove
+        // attachments the pack already named, so anything they wanted to add was silently
+        // dropped — the send reported success having left out the one file that mattered.
+        Prepared prepared = prepare(lead, packKey, actor == null ? null : actor.name(), includedAssets);
         List<WhatsAppChannel.Attachment> attachments = prepared.assets().stream()
-                .filter(a -> includedAssets == null || includedAssets.isEmpty()
-                          || includedAssets.contains(a.key()))
                 .map(a -> new WhatsAppChannel.Attachment(a.name(), a.type(), a.url()))
                 .toList();
 

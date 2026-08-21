@@ -89,6 +89,9 @@ public class SecurityConfig {
                 // Meta calls this with no session. It proves itself with an HMAC signature over
                 // the body instead, checked in the controller.
                 .requestMatchers("/api/webhooks/**").permitAll()
+                // WhatsApp fetches attachments with its own servers and a student opens them from
+                // a phone with no session. The random id is what keeps these private enough.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/assets/*/download").permitAll()
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/courses/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/hiring").permitAll()
