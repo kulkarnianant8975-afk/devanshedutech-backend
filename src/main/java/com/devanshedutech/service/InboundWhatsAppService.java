@@ -42,6 +42,12 @@ public class InboundWhatsAppService {
     /** Prefix on a menu row id, so a tap is never confused with anything else. */
     private static final String COURSE_ROW = "course:";
 
+    /** The row offered when the catalogue does not fit, so nothing is silently hidden. */
+    private static final String OTHER_ROW = "course:other";
+
+    /** WhatsApp's own cap. Exceeding it rejects the entire message rather than trimming it. */
+    private static final int MENU_LIMIT = 10;
+
     /**
      * A gap this long means the student is starting a fresh conversation rather than continuing.
      *
@@ -276,6 +282,15 @@ public class InboundWhatsAppService {
      */
     private boolean applySelection(Lead lead, String selectionId) {
         if (!selectionId.startsWith(COURSE_ROW)) return false;
+        if (OTHER_ROW.equals(selectionId)) {
+            // Not a course, and deliberately not guessed at. A counsellor asks them.
+            lifecycle.log(lead, com.devanshedutech.model.crm.ActivityType.WHATSAPP, null,
+                    com.devanshedutech.model.crm.Direction.INBOUND,
+                    "Wants something not on the menu",
+                    "They picked \"Something else\", so ask what they are looking for.",
+                    LeadLifecycleService.Actor.system());
+            return false;
+        }
         String courseId = selectionId.substring(COURSE_ROW.length());
 
         return courses.findById(courseId).map(course -> {
@@ -305,14 +320,30 @@ public class InboundWhatsAppService {
     }
 
     private boolean sendCourseMenu(Lead lead) {
-        List<com.devanshedutech.model.Course> catalogue = courses.findAll();
+        List<com.devanshedutech.model.Course> catalogue = courses.findAll().stream()
+                .filter(c -> c.getName() != null && !c.getName().isBlank())
+                .sorted(java.util.Comparator.comparing(com.devanshedutech.model.Course::getName))
+                .toList();
         if (catalogue.isEmpty()) return false;
 
-        List<com.devanshedutech.channel.WhatsAppChannel.MenuRow> rows = catalogue.stream()
-                .filter(c -> c.getName() != null && !c.getName().isBlank())
-                .map(c -> new com.devanshedutech.channel.WhatsAppChannel.MenuRow(
-                        COURSE_ROW + c.getId(), c.getName(), c.getDuration()))
-                .toList();
+        List<com.devanshedutech.channel.WhatsAppChannel.MenuRow> rows = new java.util.ArrayList<>();
+        // WhatsApp rejects a list of more than ten rows outright — the whole message, not the
+        // extras. With a longer catalogue the last row becomes a way out instead, so a student
+        // whose course did not fit still has something to tap rather than being quietly told the
+        // institute does not teach it.
+        boolean truncated = catalogue.size() > MENU_LIMIT;
+        int shown = truncated ? MENU_LIMIT - 1 : catalogue.size();
+
+        for (com.devanshedutech.model.Course c : catalogue.subList(0, shown)) {
+            rows.add(new com.devanshedutech.channel.WhatsAppChannel.MenuRow(
+                    COURSE_ROW + c.getId(), c.getName(), c.getDuration()));
+        }
+        if (truncated) {
+            rows.add(new com.devanshedutech.channel.WhatsAppChannel.MenuRow(
+                    OTHER_ROW, "Something else", "Tell us what you are looking for"));
+            log.info("Course menu shows {} of {} courses; the rest are behind \"Something else\".",
+                    shown, catalogue.size());
+        }
 
         String first = lead.getFullName() == null ? "there" : lead.getFullName().split("\\s+")[0];
         var result = sender.active().sendMenu(lead.getMobileNumber(),

@@ -409,6 +409,45 @@ class InboundWhatsAppServiceTest {
     }
 
     @Test
+    @DisplayName("a catalogue too long for WhatsApp offers a way out rather than hiding courses")
+    void aLongCatalogueOffersAnEscape() {
+        // WhatsApp rejects a list of more than ten rows outright. Silently dropping the eleventh
+        // course would tell a student the institute does not teach it.
+        List<Course> many = new java.util.ArrayList<>();
+        for (int i = 1; i <= 14; i++) {
+            many.add(Course.builder().id(String.valueOf(i)).name("Course " + i).build());
+        }
+        when(courses.findAll()).thenReturn(many);
+        when(channel.supportsMenus()).thenReturn(true);
+        when(channel.sendMenu(any(), any(), any(), any()))
+                .thenReturn(WhatsAppChannel.SendResult.accepted("sent"));
+
+        service.handle(new InboundWhatsAppService.Incoming("wamid.30", "919876543210", "Rohit", "hi", null));
+
+        ArgumentCaptor<List<WhatsAppChannel.MenuRow>> rows = ArgumentCaptor.forClass(List.class);
+        verify(channel).sendMenu(any(), any(), any(), rows.capture());
+
+        assertEquals(10, rows.getValue().size(), "WhatsApp's hard limit");
+        assertEquals("course:other", rows.getValue().get(9).id(),
+                "the last row is a way out, not a silently chosen tenth course");
+    }
+
+    @Test
+    @DisplayName("picking \"Something else\" is not treated as a course")
+    void theEscapeRowIsNotACourse() {
+        Lead lead = Lead.builder().id("l1").fullName("Rohit").optedOut(false)
+                .lastInboundAt(LocalDateTime.now().minusMinutes(2))
+                .createdAt(LocalDateTime.now().minusDays(1)).build();
+        when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(lead));
+
+        service.handle(new InboundWhatsAppService.Incoming(
+                "wamid.31", "919876543210", "Rohit", "Something else", "course:other"));
+
+        assertNull(lead.getCourseInterested(), "nothing is guessed at");
+        verify(packs, never()).send(any(), eq("course_chosen"), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("a student with no WhatsApp name is labelled honestly")
     void missingProfileNamesAreHandled() {
         service.handle(new InboundWhatsAppService.Incoming("wamid.11", "919876543210", null, "hi", null));
