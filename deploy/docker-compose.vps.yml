@@ -1,0 +1,174 @@
+name: devanshedutech
+
+# The stack as it runs on the VPS at /srv/devanshedutech.
+#
+# Brought into the repository so it can be reviewed and changed deliberately, rather than edited
+# in a browser terminal on a machine nobody can reach. It reproduces what was already there —
+# the memory caps, the log rotation, the postgres tuning, the OOM preferences — and adds the
+# settings the CRM needs, which the previous version had no way to receive.
+#
+# Co-tenant with the PDMA CRM on this box. Everything here is namespaced and capped so it cannot
+# collide with, or starve, the other projects:
+#  - no host web ports (Caddy reaches us over a shared docker network)
+#  - postgres is not published to the host at all
+#  - mem_limit + oom_score_adj=500 so the OOM killer prefers our processes
+#    (there is no swap on this box)
+#  - log rotation, so a runaway log cannot fill the disk and take the other projects down
+
+networks:
+  devanshedutech_net:
+    name: devanshedutech_net
+    driver: bridge
+
+volumes:
+  devanshedutech_pgdata:
+    name: devanshedutech_pgdata
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  dvt-db:
+    image: postgres:16-alpine
+    container_name: dvt-postgres
+    restart: unless-stopped
+    # Deliberately NO ports: — reachable only on devanshedutech_net.
+    environment:
+      POSTGRES_DB: devanshedutech
+      POSTGRES_USER: devanshedutech
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      # Left on UTC. Postgres stores these columns as wall-clock values with no zone, so its
+      # own TZ does not change what is written — the application decides that.
+      TZ: UTC
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - max_connections=50
+      - -c
+      - work_mem=8MB
+    volumes:
+      - devanshedutech_pgdata:/var/lib/postgresql/data
+    networks: [devanshedutech_net]
+    shm_size: 128mb
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: 0.5
+    pids_limit: 200
+    oom_score_adj: 500
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devanshedutech -d devanshedutech"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  dvt-backend:
+    image: devanshedutech-backend:${BACKEND_TAG:-latest}
+    container_name: dvt-backend
+    restart: unless-stopped
+    depends_on:
+      dvt-db: { condition: service_healthy }
+    environment:
+      # application.yml reads DATABASE_*, not SPRING_DATASOURCE_*.
+      DATABASE_URL: jdbc:postgresql://dvt-db:5432/devanshedutech
+      DATABASE_USERNAME: devanshedutech
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # First entry is also the OAuth post-login redirect target
+      # (OAuth2LoginSuccessHandler reads allowedOrigins[0]).
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
+      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-}
+      MANAGER_EMAILS: ${MANAGER_EMAILS:-}
+      COUNSELLOR_EMAILS: ${COUNSELLOR_EMAILS:-}
+      VIEWER_EMAILS: ${VIEWER_EMAILS:-}
+      SELF_REGISTRATION_ENABLED: ${SELF_REGISTRATION_ENABLED:-false}
+
+      # Served over HTTPS behind Caddy, so the session cookie must be secure. This is the
+      # application default too; stated here so it cannot be lost by accident.
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # WhatsApp fetches attachments from this address itself, and tracked asset links are built
+      # from it. Anything unreachable from the internet means files silently never arrive.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+
+      # The follow-up pass changes lead grades on a schedule. Off until the backfill has been
+      # seen landing and a few leads have been graded by hand.
+      LADDER_ENABLED: ${LADDER_ENABLED:-false}
+      LADDER_CRON: ${LADDER_CRON:-0 0 6 * * *}
+      NOTIFICATION_CRON: ${NOTIFICATION_CRON:-0 15 6 * * *}
+
+      # WhatsApp — sending and receiving.
+      WHATSAPP_CHANNEL: ${WHATSAPP_CHANNEL:-auto}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_TEMPLATE: ${WHATSAPP_TEMPLATE:-hello_world}
+      WHATSAPP_TEMPLATE_LANGUAGE: ${WHATSAPP_TEMPLATE_LANGUAGE:-en_US}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_AUTO_REPLY: ${WHATSAPP_AUTO_REPLY:-true}
+      WHATSAPP_CONVERSATION_GAP_MINUTES: ${WHATSAPP_CONVERSATION_GAP_MINUTES:-1440}
+      AISENSY_API_KEY: ${AISENSY_API_KEY:-}
+
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+
+      # SerialGC: on 2 shared vCPUs, G1's GC threads are pure overhead.
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=70.0
+        -XX:MaxMetaspaceSize=192m
+        -XX:+UseSerialGC
+        -Xss512k
+
+      # Asia/Kolkata, not UTC — and this is a change, so it is worth being explicit about.
+      #
+      # The stack ran UTC because created_at is a LocalDateTime migrated from Render, and moving
+      # zones would shift new timestamps away from the old ones. That reasoning was right. But
+      # the CRM cannot run on UTC: opening hours are stored as 10:00-19:00 Parbhani time, and a
+      # UTC clock reads 10am IST as 04:30, so every response-time figure and every follow-up
+      # date would be wrong. TimeZoneConfig also calls TimeZone.setDefault at startup, so the
+      # application would move to IST whatever this said — silently, which is worse.
+      #
+      # The five affected columns are shifted once by deploy/MIGRATION-utc-to-ist.sql, run with
+      # the backend stopped, immediately before the first deploy of this file.
+      TZ: ${CRM_TIMEZONE:-Asia/Kolkata}
+      CRM_TIMEZONE: ${CRM_TIMEZONE:-Asia/Kolkata}
+    networks: [devanshedutech_net]
+    mem_limit: 1g
+    mem_reservation: 512m
+    cpus: 1.0
+    pids_limit: 300
+    oom_score_adj: 500
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/courses >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  dvt-frontend:
+    image: caddy:2-alpine
+    container_name: dvt-frontend
+    restart: unless-stopped
+    volumes:
+      - ./frontend/current:/srv/site:ro
+      - ./frontend/Caddyfile.static:/etc/caddy/Caddyfile:ro
+    networks: [devanshedutech_net]
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 100
+    oom_score_adj: 500
+    logging: *default-logging
