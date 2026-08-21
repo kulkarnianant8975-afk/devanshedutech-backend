@@ -89,12 +89,21 @@ jobs:
           npm run build
           ls dist | head
 
-      - name: Set up the deploy key
+      # The host is pinned from a secret, not fetched at deploy time. Running ssh-keyscan here
+      # would accept whatever answers on that address on every single run — trust on first use,
+      # forever, which is the same guarantee as StrictHostKeyChecking=no. Rebuild the server and
+      # this now fails loudly until the secret is updated, which is the correct behaviour.
+      - name: Set up the deploy key and pin the host
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          if ! grep -q . ~/.ssh/known_hosts; then
+            echo "::error::VPS_HOST_KEY secret is empty. Capture it with: ssh-keyscan -t ed25519 <host>"
+            exit 1
+          fi
 
       # Refuses rather than guesses. Two other projects live on this machine and one of them owns
       # the public ports; anything unexpected here means stop, not improvise.
