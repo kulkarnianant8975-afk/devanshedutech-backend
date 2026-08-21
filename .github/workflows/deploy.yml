@@ -144,6 +144,7 @@ jobs:
           # fingerprints is the only way to see whether the pinned value is malformed, is for a
           # different host, or is simply out of date.
           echo "known_hosts: $(wc -l < ~/.ssh/known_hosts) line(s), $(wc -c < ~/.ssh/known_hosts) bytes"
+          echo "connecting as: root@${{ secrets.VPS_HOST }}"
           echo "--- pinned ---"
           ssh-keygen -lf ~/.ssh/known_hosts 2>&1 || echo "  cannot parse — the secret is not valid known_hosts format"
           echo "--- what the server actually presents ---"
@@ -159,7 +160,7 @@ jobs:
       - name: Pre-flight
         env:
           HOST: ${{ secrets.VPS_HOST }}
-          USER: ${{ secrets.VPS_USER }}
+          USER: root
         run: |
           ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes "$USER@$HOST" bash -se <<'EOF'
           set -e
@@ -197,7 +198,7 @@ jobs:
       - name: Copy the build across
         env:
           HOST: ${{ secrets.VPS_HOST }}
-          USER: ${{ secrets.VPS_USER }}
+          USER: root
         run: |
           scp -i ~/.ssh/deploy backend-image.tar.gz "$USER@$HOST:/srv/devanshedutech/"
           # The compose file is version controlled now, so this is its source of truth. Kept
@@ -211,7 +212,7 @@ jobs:
       - name: Deploy
         env:
           HOST: ${{ secrets.VPS_HOST }}
-          USER: ${{ secrets.VPS_USER }}
+          USER: root
           TAG: ${{ env.TAG }}
           LADDER: ${{ inputs.ladder_enabled }}
         run: |
@@ -245,7 +246,7 @@ jobs:
       - name: Verify it came up
         env:
           HOST: ${{ secrets.VPS_HOST }}
-          USER: ${{ secrets.VPS_USER }}
+          USER: root
         run: |
           ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes "$USER@$HOST" bash -se <<'EOF'
           set -e
@@ -267,7 +268,7 @@ jobs:
         if: success()
         env:
           HOST: ${{ secrets.VPS_HOST }}
-          USER: ${{ secrets.VPS_USER }}
+          USER: root
         run: |
           ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes "$USER@$HOST" \
             "cd /srv/devanshedutech && docker compose logs --since 5m dvt-backend | grep -E 'Backfilled|Seeded|Team:|Opening hours|waiting to be graded' || true"
