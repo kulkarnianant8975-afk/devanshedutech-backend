@@ -49,6 +49,22 @@ jobs:
           echo "  base64 images: $INLINE  carrying $WEIGHT chars"
           echo "  no image at all: $MISSING"
 
+      - name: Weigh the images a visitor downloads
+        env:
+          SITE: ${{ inputs.site }}
+        run: |
+          # The card slot is 192px tall. If these come back as multi-megabyte originals, the
+          # browser is downloading a full-resolution photo to paint a thumbnail.
+          jq -r '.[] | select((.image // "") | startswith("http")) | .image' courses.json | head -6 > urls.txt
+          TOTAL=0
+          while read -r url; do
+            BYTES=$(curl -sS -o /dev/null -w '%{size_download}' -H 'Accept: image/avif,image/webp,*/*' "$url")
+            TOTAL=$((TOTAL + BYTES))
+            printf '  %9s bytes  %s\n' "$BYTES" "$(echo "$url" | cut -c1-96)"
+          done < urls.txt
+          echo
+          echo "  first six course images total: $TOTAL bytes"
+
       - name: Check what the front page ships
         env:
           SITE: ${{ inputs.site }}
