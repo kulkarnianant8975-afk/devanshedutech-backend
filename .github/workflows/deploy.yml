@@ -96,8 +96,24 @@ jobs:
       - name: Set up the deploy key and pin the host
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy
+          # Carriage returns are stripped: an OpenSSH private key pasted through a browser form
+          # can pick them up, and the resulting file looks correct but will not parse.
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
+
+          # Fingerprint, never the key. "Permission denied (publickey)" is given whether the key
+          # is truncated, malformed, or simply not the one the server trusts — three problems with
+          # three different fixes and one indistinguishable error.
+          echo "deploy key: $(wc -l < ~/.ssh/deploy) line(s), $(wc -c < ~/.ssh/deploy) bytes"
+          if ssh-keygen -lf ~/.ssh/deploy > /tmp/fp 2>&1; then
+            cat /tmp/fp
+            echo "Expected: SHA256:LCY2Ho9mZWPuTXRYTR0WCbtR+laYH0jUjBG+6sEc6Eo"
+          else
+            echo "::error::The private key does not parse. VPS_SSH_KEY is truncated or mangled."
+            echo "::error::It must be all 8 lines, from -----BEGIN to -----END inclusive."
+            cat /tmp/fp
+            exit 1
+          fi
           # Normalised rather than taken literally. A pasted key picks up carriage returns,
           # stray indentation and wrapped lines depending on where it was copied from, and every
           # one of those produces the same unhelpful "Host key verification failed". The key
@@ -145,7 +161,7 @@ jobs:
           HOST: ${{ secrets.VPS_HOST }}
           USER: ${{ secrets.VPS_USER }}
         run: |
-          ssh -i ~/.ssh/deploy -o BatchMode=yes "$USER@$HOST" bash -se <<'EOF'
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes "$USER@$HOST" bash -se <<'EOF'
           set -e
           cd /srv/devanshedutech || { echo "::error::/srv/devanshedutech is missing."; exit 1; }
           [ -f .env ] || { echo "::error::.env is missing. It is never written by this workflow."; exit 1; }
@@ -199,7 +215,7 @@ jobs:
           TAG: ${{ env.TAG }}
           LADDER: ${{ inputs.ladder_enabled }}
         run: |
-          ssh -i ~/.ssh/deploy -o BatchMode=yes "$USER@$HOST" TAG="$TAG" LADDER="$LADDER" bash -se <<'EOF'
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes "$USER@$HOST" TAG="$TAG" LADDER="$LADDER" bash -se <<'EOF'
           set -e
           cd /srv/devanshedutech
 
@@ -231,7 +247,7 @@ jobs:
           HOST: ${{ secrets.VPS_HOST }}
           USER: ${{ secrets.VPS_USER }}
         run: |
-          ssh -i ~/.ssh/deploy -o BatchMode=yes "$USER@$HOST" bash -se <<'EOF'
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes "$USER@$HOST" bash -se <<'EOF'
           set -e
           cd /srv/devanshedutech
           for i in $(seq 1 40); do
@@ -253,5 +269,5 @@ jobs:
           HOST: ${{ secrets.VPS_HOST }}
           USER: ${{ secrets.VPS_USER }}
         run: |
-          ssh -i ~/.ssh/deploy -o BatchMode=yes "$USER@$HOST" \
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o IdentitiesOnly=yes "$USER@$HOST" \
             "cd /srv/devanshedutech && docker compose logs --since 5m dvt-backend | grep -E 'Backfilled|Seeded|Team:|Opening hours|waiting to be graded' || true"
