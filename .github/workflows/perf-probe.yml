@@ -1,0 +1,63 @@
+name: Perf probe
+
+# Why this runs on GitHub rather than on a laptop:
+#
+# Hostinger's edge blocks the office IP whenever it sees machine-timed requests, and it blocks it
+# provider-wide — SSH, HTTPS, and the browser terminal all go dark at once. Measuring a site
+# repeatedly is exactly the pattern that triggers it. GitHub's runners are not affected, so any
+# probe that runs more than once belongs here.
+#
+# Manual only. Nothing about this should run on a schedule.
+
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: Public site to measure
+        default: https://www.devanshedutech.com
+        required: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Time the pages a visitor actually waits for
+        env:
+          SITE: ${{ inputs.site }}
+        run: |
+          FMT='  dns %{time_namelookup}s  tls %{time_appconnect}s  ttfb %{time_starttransfer}s  total %{time_total}s  %{size_download} bytes  (%{http_code})\n'
+          for path in / /courses /api/courses; do
+            echo "$SITE$path"
+            curl -sS --compressed -o /dev/null -w "$FMT" "$SITE$path" || echo "  FAILED"
+          done
+
+      - name: Weigh the courses payload
+        env:
+          SITE: ${{ inputs.site }}
+        run: |
+          curl -sS --compressed "$SITE/api/courses" -o courses.json
+          echo "  /api/courses uncompressed: $(wc -c < courses.json) bytes"
+          echo "  courses: $(jq 'length' courses.json)"
+          echo
+          # The question this answers: is an image a short CDN link, or a whole base64 file
+          # embedded in the JSON that every visitor downloads before the page can render?
+          jq -r '.[] | "    \(.name[0:34]) | \(if (.image // "") == "" then "NO IMAGE" elif (.image | startswith("data:")) then "BASE64 INLINE" else "link" end) | \((.image // "") | length) chars"' courses.json
+          echo
+          INLINE=$(jq '[.[] | select((.image // "") | startswith("data:"))] | length' courses.json)
+          WEIGHT=$(jq '[.[] | select((.image // "") | startswith("data:")) | (.image | length)] | add // 0' courses.json)
+          MISSING=$(jq -r '[.[] | select((.image // "") == "") | .name] | join(", ")' courses.json)
+          echo "  base64 images: $INLINE  carrying $WEIGHT chars"
+          echo "  no image at all: $MISSING"
+
+      - name: Check what the front page ships
+        env:
+          SITE: ${{ inputs.site }}
+        run: |
+          curl -sS --compressed "$SITE/" -o index.html
+          echo "  index.html $(wc -c < index.html) bytes"
+          # Compression and cache headers are the cheap wins, so report them rather than assume.
+          for asset in $(grep -o '/assets/[A-Za-z0-9._-]*\.\(js\|css\)' index.html | sort -u); do
+            echo "  $asset"
+            curl -sSI --compressed "$SITE$asset" \
+              | grep -iE 'content-encoding|cache-control|content-length|^HTTP' | sed 's/^/    /'
+          done
