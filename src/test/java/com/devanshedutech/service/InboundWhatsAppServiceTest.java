@@ -448,6 +448,92 @@ class InboundWhatsAppServiceTest {
     }
 
     @Test
+    @DisplayName("with more courses than a menu holds, the first menu offers areas")
+    void areasComeFirstWhenTheCatalogueIsLarge() {
+        // Fifteen courses and a ten-row limit: a flat menu would tell six students the institute
+        // does not teach the thing it teaches.
+        List<Course> many = new java.util.ArrayList<>();
+        String[] areas = {"Data", "Marketing", "Programming", "Professional"};
+        for (int i = 1; i <= 15; i++) {
+            many.add(Course.builder().id(String.valueOf(i)).name("Course " + i)
+                    .category(areas[i % areas.length]).build());
+        }
+        when(courses.findAll()).thenReturn(many);
+        when(channel.supportsMenus()).thenReturn(true);
+        when(channel.sendMenu(any(), any(), any(), any()))
+                .thenReturn(WhatsAppChannel.SendResult.accepted("sent"));
+
+        service.handle(new InboundWhatsAppService.Incoming("wamid.40", "919876543210", "R", "hi", null));
+
+        ArgumentCaptor<List<WhatsAppChannel.MenuRow>> rows = ArgumentCaptor.forClass(List.class);
+        verify(channel).sendMenu(any(), any(), any(), rows.capture());
+        assertEquals(4, rows.getValue().size(), "one row per area, not per course");
+        assertTrue(rows.getValue().stream().allMatch(r -> r.id().startsWith("area:")));
+    }
+
+    @Test
+    @DisplayName("category spelling is normalised, so Ai and AI are one area")
+    void categorySpellingIsNormalised() {
+        when(courses.findAll()).thenReturn(List.of(
+                Course.builder().id("1").name("AI for All").category("AI").build(),
+                Course.builder().id("2").name("Agentic AI").category("Ai").build(),
+                Course.builder().id("3").name("Tally").category("Accounting").build()));
+        when(channel.supportsMenus()).thenReturn(true);
+        when(channel.sendMenu(any(), any(), any(), any()))
+                .thenReturn(WhatsAppChannel.SendResult.accepted("sent"));
+
+        service.handle(new InboundWhatsAppService.Incoming("wamid.41", "919876543210", "R", "hi", null));
+
+        ArgumentCaptor<List<WhatsAppChannel.MenuRow>> rows = ArgumentCaptor.forClass(List.class);
+        verify(channel).sendMenu(any(), any(), any(), rows.capture());
+        // Two rows, not three: free-text categories typed over months should not occupy two rows
+        // of a ten-row menu saying the same word.
+        assertEquals(2, rows.getValue().size());
+    }
+
+    @Test
+    @DisplayName("one area only means no area menu at all")
+    void aSingleAreaSkipsTheFirstStep() {
+        when(courses.findAll()).thenReturn(List.of(
+                Course.builder().id("1").name("Java").category("Programming").build(),
+                Course.builder().id("2").name("Python").category("Programming").build()));
+        when(channel.supportsMenus()).thenReturn(true);
+        when(channel.sendMenu(any(), any(), any(), any()))
+                .thenReturn(WhatsAppChannel.SendResult.accepted("sent"));
+
+        service.handle(new InboundWhatsAppService.Incoming("wamid.42", "919876543210", "R", "hi", null));
+
+        ArgumentCaptor<List<WhatsAppChannel.MenuRow>> rows = ArgumentCaptor.forClass(List.class);
+        verify(channel).sendMenu(any(), any(), any(), rows.capture());
+        assertTrue(rows.getValue().stream().allMatch(r -> r.id().startsWith("course:")),
+                "a menu of one area would waste a tap");
+    }
+
+    @Test
+    @DisplayName("tapping an area shows its courses rather than choosing one")
+    void tappingAnAreaOpensTheSecondMenu() {
+        Lead lead = Lead.builder().id("l1").fullName("R").optedOut(false)
+                .lastInboundAt(LocalDateTime.now().minusMinutes(2))
+                .createdAt(LocalDateTime.now().minusDays(1)).build();
+        when(leads.findByPhoneNormalized("9876543210")).thenReturn(List.of(lead));
+        when(courses.findAll()).thenReturn(List.of(
+                Course.builder().id("1").name("Data Science").category("Data").build(),
+                Course.builder().id("2").name("Tally").category("Accounting").build()));
+        when(channel.supportsMenus()).thenReturn(true);
+        when(channel.sendMenu(any(), any(), any(), any()))
+                .thenReturn(WhatsAppChannel.SendResult.accepted("sent"));
+
+        service.handle(new InboundWhatsAppService.Incoming(
+                "wamid.43", "919876543210", "R", "Data", "area:Data"));
+
+        assertNull(lead.getCourseInterested(), "an area is not a course");
+        ArgumentCaptor<List<WhatsAppChannel.MenuRow>> rows = ArgumentCaptor.forClass(List.class);
+        verify(channel).sendMenu(any(), any(), any(), rows.capture());
+        assertEquals(1, rows.getValue().size());
+        assertEquals("course:1", rows.getValue().get(0).id());
+    }
+
+    @Test
     @DisplayName("a student with no WhatsApp name is labelled honestly")
     void missingProfileNamesAreHandled() {
         service.handle(new InboundWhatsAppService.Incoming("wamid.11", "919876543210", null, "hi", null));

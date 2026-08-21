@@ -42,6 +42,9 @@ public class InboundWhatsAppService {
     /** Prefix on a menu row id, so a tap is never confused with anything else. */
     private static final String COURSE_ROW = "course:";
 
+    /** A row that opens a second menu rather than choosing a course. */
+    private static final String AREA_ROW = "area:";
+
     /** The row offered when the catalogue does not fit, so nothing is silently hidden. */
     private static final String OTHER_ROW = "course:other";
 
@@ -166,6 +169,19 @@ public class InboundWhatsAppService {
                 .leadId(lead.getId())
                 .receivedAt(LocalDateTime.now())
                 .build());
+
+        // Tapping an area is not a choice of course — it opens the next menu. Handled before
+        // anything else so it is never mistaken for one.
+        if (message.isSelection() && message.selectionId().startsWith(AREA_ROW)) {
+            String area = message.selectionId().substring(AREA_ROW.length());
+            lifecycle.recordInbound(lead, message.text(), LeadLifecycleService.Actor.system());
+            List<com.devanshedutech.model.Course> inArea =
+                    byArea().getOrDefault(area, java.util.List.of());
+            if (!sendCoursesIn(lead, inArea, "Here is what we teach in " + area + ".")) {
+                log.warn("Could not show courses for area '{}' to lead {}", area, lead.getId());
+            }
+            return Optional.of(lead);
+        }
 
         // A tap is unambiguous, so it is honoured ahead of anything read out of free text.
         boolean chose = message.isSelection() && applySelection(lead, message.selectionId());
@@ -319,43 +335,112 @@ public class InboundWhatsAppService {
         sendPack(lead, AUTO_REPLY_PACK);
     }
 
-    private boolean sendCourseMenu(Lead lead) {
-        List<com.devanshedutech.model.Course> catalogue = courses.findAll().stream()
+    /**
+     * Groups courses the way a student would look for them.
+     *
+     * <p>The stored category is used but not trusted: it is free text typed over months, so
+     * "AI" and "Ai" arrive as different groups and would occupy two rows of a ten-row menu
+     * saying the same thing.</p>
+     */
+    private java.util.Map<String, List<com.devanshedutech.model.Course>> byArea() {
+        java.util.Map<String, List<com.devanshedutech.model.Course>> areas = new java.util.LinkedHashMap<>();
+        courses.findAll().stream()
                 .filter(c -> c.getName() != null && !c.getName().isBlank())
                 .sorted(java.util.Comparator.comparing(com.devanshedutech.model.Course::getName))
-                .toList();
-        if (catalogue.isEmpty()) return false;
+                .forEach(c -> {
+                    String raw = c.getCategory() == null || c.getCategory().isBlank()
+                            ? "Other" : c.getCategory().trim();
+                    String area = Character.toUpperCase(raw.charAt(0))
+                            + raw.substring(1).toLowerCase(java.util.Locale.ROOT);
+                    areas.computeIfAbsent(area, k -> new java.util.ArrayList<>()).add(c);
+                });
+        return areas;
+    }
+
+    /**
+     * The opening menu: areas of study, not the whole catalogue.
+     *
+     * <p>WhatsApp allows ten rows in a list and refuses the entire message above that. With
+     * fifteen courses a flat menu could show nine, which means telling six students the institute
+     * does not teach the thing it teaches. Asking for the area first and the course second keeps
+     * every course reachable in two taps.</p>
+     */
+    private boolean sendCourseMenu(Lead lead) {
+        java.util.Map<String, List<com.devanshedutech.model.Course>> areas = byArea();
+        if (areas.isEmpty()) return false;
+
+        // A single area is not worth a menu of one; go straight to the courses.
+        if (areas.size() == 1) {
+            return sendCoursesIn(lead, areas.values().iterator().next(), "Tap the course you want");
+        }
+
+        List<java.util.Map.Entry<String, List<com.devanshedutech.model.Course>>> ordered =
+                new java.util.ArrayList<>(areas.entrySet());
+        // Biggest areas first, so the rows most students want are the ones that survive any cut.
+        ordered.sort((a, b) -> Integer.compare(b.getValue().size(), a.getValue().size()));
 
         List<com.devanshedutech.channel.WhatsAppChannel.MenuRow> rows = new java.util.ArrayList<>();
-        // WhatsApp rejects a list of more than ten rows outright — the whole message, not the
-        // extras. With a longer catalogue the last row becomes a way out instead, so a student
-        // whose course did not fit still has something to tap rather than being quietly told the
-        // institute does not teach it.
-        boolean truncated = catalogue.size() > MENU_LIMIT;
-        int shown = truncated ? MENU_LIMIT - 1 : catalogue.size();
+        boolean truncated = ordered.size() > MENU_LIMIT;
+        int shown = truncated ? MENU_LIMIT - 1 : ordered.size();
 
-        for (com.devanshedutech.model.Course c : catalogue.subList(0, shown)) {
+        for (var area : ordered.subList(0, shown)) {
+            int n = area.getValue().size();
             rows.add(new com.devanshedutech.channel.WhatsAppChannel.MenuRow(
-                    COURSE_ROW + c.getId(), c.getName(), c.getDuration()));
+                    AREA_ROW + area.getKey(), area.getKey(),
+                    n == 1 ? area.getValue().get(0).getName() : n + " courses"));
         }
         if (truncated) {
             rows.add(new com.devanshedutech.channel.WhatsAppChannel.MenuRow(
                     OTHER_ROW, "Something else", "Tell us what you are looking for"));
-            log.info("Course menu shows {} of {} courses; the rest are behind \"Something else\".",
-                    shown, catalogue.size());
+            log.info("Menu shows {} of {} areas; the rest are behind \"Something else\".",
+                    shown, ordered.size());
         }
 
         String first = lead.getFullName() == null ? "there" : lead.getFullName().split("\\s+")[0];
         var result = sender.active().sendMenu(lead.getMobileNumber(),
                 "Hi " + first + "! \uD83D\uDC4B Thanks for messaging Devansh Edu-Tech.\n\n"
-                + "Tap the course you are interested in and I will send you its syllabus and "
-                + "fees straight away. A counsellor will call you shortly.",
-                "Choose a course", rows);
+                + "What are you interested in? Tap an area and I will show you the courses, then "
+                + "send the syllabus and fees straight away. A counsellor will call you shortly.",
+                "Choose an area", rows);
 
         if (result.sent()) {
             lifecycle.log(lead, com.devanshedutech.model.crm.ActivityType.WHATSAPP, null,
                     com.devanshedutech.model.crm.Direction.OUTBOUND,
                     "Course menu sent", "They were asked to pick a course.",
+                    LeadLifecycleService.Actor.system());
+            return true;
+        }
+        log.warn("Course menu to lead {} was not delivered: {}", lead.getId(), result.detail());
+        return false;
+    }
+
+    /** The second menu: the courses inside one area. */
+    private boolean sendCoursesIn(Lead lead, List<com.devanshedutech.model.Course> list, String prompt) {
+        if (list.isEmpty()) return false;
+
+        // The ten-row limit applies here too. One area holding more courses than a menu can show
+        // would drop the overflow just as silently as a flat catalogue did, so the last row is a
+        // way out rather than an arbitrary tenth course.
+        boolean truncated = list.size() > MENU_LIMIT;
+        int shown = truncated ? MENU_LIMIT - 1 : list.size();
+
+        List<com.devanshedutech.channel.WhatsAppChannel.MenuRow> rows =
+                new java.util.ArrayList<>(list.subList(0, shown).stream()
+                        .map(c -> new com.devanshedutech.channel.WhatsAppChannel.MenuRow(
+                                COURSE_ROW + c.getId(), c.getName(), c.getDuration()))
+                        .toList());
+        if (truncated) {
+            rows.add(new com.devanshedutech.channel.WhatsAppChannel.MenuRow(
+                    OTHER_ROW, "Something else", "Tell us what you are looking for"));
+            log.info("Showing {} of {} courses; the rest are behind \"Something else\".",
+                    shown, list.size());
+        }
+
+        var result = sender.active().sendMenu(lead.getMobileNumber(), prompt, "Choose a course", rows);
+        if (result.sent()) {
+            lifecycle.log(lead, com.devanshedutech.model.crm.ActivityType.WHATSAPP, null,
+                    com.devanshedutech.model.crm.Direction.OUTBOUND,
+                    "Course menu sent", "They were shown " + rows.size() + " course(s) to pick from.",
                     LeadLifecycleService.Actor.system());
             return true;
         }
