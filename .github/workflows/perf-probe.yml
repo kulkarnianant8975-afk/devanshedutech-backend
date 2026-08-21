@@ -64,6 +64,18 @@ jobs:
           done < urls.txt
           echo
           echo "  first six course images total: $TOTAL bytes"
+          echo
+          # The same images asked for at card size. f_auto/q_auto were already being applied by
+          # the frontend; w_600,c_limit is the part that was missing.
+          SIZED=0
+          while read -r url; do
+            SMALL=$(echo "$url" | sed 's#/upload/#/upload/f_auto,q_auto,w_600,c_limit/#')
+            BYTES=$(curl -sS -o /dev/null -w '%{size_download}' -H 'Accept: image/avif,image/webp,*/*' "$SMALL")
+            SIZED=$((SIZED + BYTES))
+            printf '  %9s bytes  (card size)\n' "$BYTES"
+          done < urls.txt
+          echo
+          echo "  at card size: $SIZED bytes, down from $TOTAL"
 
       - name: Check what the front page ships
         env:
