@@ -1,0 +1,154 @@
+name: Deploy CRM
+
+# Deploys the CRM to the VPS.
+#
+# This runs from GitHub rather than from anyone's laptop for a specific reason: the institute's
+# own network cannot reach the Hostinger VPS at all — every port, plus the browser terminal, is
+# blocked at the provider's edge. GitHub's runners are unaffected, which makes this the only
+# route that works reliably.
+#
+# Never triggered by a push. Deploying a CRM that people are working in is a decision, so it is
+# started by hand and asks for confirmation first.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY to confirm'
+        required: true
+        default: ''
+      ladder_enabled:
+        description: 'Run the daily follow-up pass? Leave false for the first deploy.'
+        required: true
+        default: 'false'
+
+concurrency:
+  # Two deploys at once would race over the same compose project.
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the confirmation
+        if: inputs.confirm != 'DEPLOY'
+        run: |
+          echo "::error::Type DEPLOY in the confirmation box to run this."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      # The tests are the gate. A deploy that skips them is a deploy that ships a broken CRM to
+      # people who are mid-conversation with students.
+      - name: Run the test suite
+        run: mvn -B verify
+
+      - name: Build the backend image
+        run: docker build -t devansh-crm-backend:latest .
+
+      - name: Check out the frontend
+        uses: actions/checkout@v4
+        with:
+          repository: kulkarnianant8975-afk/devanshedutech-frontend
+          ref: ${{ github.ref_name }}
+          path: frontend
+
+      - name: Build the frontend image
+        run: docker build -t devansh-crm-web:latest ./frontend
+
+      - name: Save the images
+        run: |
+          docker save devansh-crm-backend:latest devansh-crm-web:latest | gzip > images.tar.gz
+          ls -lh images.tar.gz
+
+      - name: Set up the deploy key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # Refuses rather than guesses. The VPS already serves a live website, and this job has no
+      # picture of what else is on it — so it checks before it takes anything.
+      - name: Pre-flight — is the port free and is another project in the way?
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          CRM_PORT: ${{ vars.CRM_PORT || '8090' }}
+        run: |
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "$USER@$HOST" bash -s <<EOF
+          set -e
+          if ! command -v docker > /dev/null; then
+            echo "::error::Docker is not installed on the VPS."
+            exit 1
+          fi
+          if ss -tln | grep -q "127.0.0.1:${CRM_PORT}\b"; then
+            if ! docker ps --format '{{.Names}}' | grep -q '^devansh-crm-'; then
+              echo "::error::Port ${CRM_PORT} is already in use by something that is not this CRM."
+              exit 1
+            fi
+          fi
+          echo "Pre-flight passed. Port ${CRM_PORT} is available."
+          EOF
+
+      - name: Copy the images and compose file across
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "$USER@$HOST" "mkdir -p /opt/devansh-crm"
+          scp -i ~/.ssh/deploy images.tar.gz docker-compose.prod.yml "$USER@$HOST:/opt/devansh-crm/"
+
+      - name: Deploy
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          LADDER: ${{ inputs.ladder_enabled }}
+        run: |
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "$USER@$HOST" bash -s <<EOF
+          set -e
+          cd /opt/devansh-crm
+
+          # The environment file is written once, by hand, and never by this workflow — it holds
+          # the database password and the WhatsApp credentials, and a deploy that rewrites it
+          # would silently drop anything set on the server.
+          if [ ! -f .env ]; then
+            echo "::error::/opt/devansh-crm/.env is missing. Create it before the first deploy."
+            exit 1
+          fi
+
+          docker load < images.tar.gz
+          LADDER_ENABLED=$LADDER docker compose -p devansh-crm -f docker-compose.prod.yml up -d
+          rm -f images.tar.gz
+          EOF
+
+      # Checked from here, not from the institute's machine, which cannot reach the VPS.
+      - name: Verify it came up
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          CRM_PORT: ${{ vars.CRM_PORT || '8090' }}
+        run: |
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "$USER@$HOST" bash -s <<EOF
+          set -e
+          for i in \$(seq 1 30); do
+            if curl -sf -o /dev/null "http://127.0.0.1:${CRM_PORT}/api/courses"; then
+              echo "The CRM is answering on port ${CRM_PORT}."
+              docker compose -p devansh-crm -f /opt/devansh-crm/docker-compose.prod.yml ps
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::It did not answer within about two minutes. Recent logs:"
+          docker compose -p devansh-crm -f /opt/devansh-crm/docker-compose.prod.yml logs --tail 60 backend
+          exit 1
+          EOF

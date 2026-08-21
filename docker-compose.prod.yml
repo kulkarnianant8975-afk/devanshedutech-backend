@@ -1,0 +1,88 @@
+# The CRM as it runs on the VPS, alongside whatever else is already there.
+#
+# Written to be a guest on a machine that is already serving a live website. Three rules follow
+# from that, and none of them are negotiable:
+#
+#   1. Nothing binds to 80 or 443. Those belong to the site that is already there. The CRM
+#      listens on one high port on the loopback interface only, and is published later by
+#      whatever web server is already in front — a deliberate, separate step.
+#   2. The database port is not published at all. The local stack exposes 5432 for convenience;
+#      on a public machine that is an open Postgres on the internet.
+#   3. Everything is namespaced. Its own project name, its own volume, its own network, so
+#      `docker compose down` here can never reach another project's containers.
+#
+# Used as:  docker compose -p devansh-crm -f docker-compose.prod.yml up -d
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:-devanshedutech}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME:-devanshedutech}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-devanshedutech}"]
+      interval: 10s
+      retries: 10
+    # No ports section on purpose. The backend reaches it over the private network below.
+    volumes:
+      - crmdata:/var/lib/postgresql/data
+    networks: [crm]
+
+  backend:
+    image: ${BACKEND_IMAGE:-devansh-crm-backend:latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=jdbc:postgresql://db:5432/${DATABASE_NAME:-devanshedutech}
+      - DATABASE_USERNAME=${DATABASE_USERNAME:-devanshedutech}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?set DATABASE_PASSWORD}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?set ALLOWED_ORIGINS to the public address}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL to the public address}
+      # This is HTTPS in front of a real domain, so the session cookie must be secure.
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      - CRM_TIMEZONE=${CRM_TIMEZONE:-Asia/Kolkata}
+      - SUPER_ADMIN_EMAILS=${SUPER_ADMIN_EMAILS:-}
+      - SELF_REGISTRATION_ENABLED=false
+      # The follow-up pass changes lead grades on a schedule. Off for the first deploy, so the
+      # backfill can be seen landing before anything starts moving on its own.
+      - LADDER_ENABLED=${LADDER_ENABLED:-false}
+      # WhatsApp
+      - WHATSAPP_CHANNEL=${WHATSAPP_CHANNEL:-auto}
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_TEMPLATE=${WHATSAPP_TEMPLATE:-hello_world}
+      - WHATSAPP_TEMPLATE_LANGUAGE=${WHATSAPP_TEMPLATE_LANGUAGE:-en_US}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-}
+      - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET:-}
+      - WHATSAPP_AUTO_REPLY=${WHATSAPP_AUTO_REPLY:-true}
+      - WHATSAPP_CONVERSATION_GAP_MINUTES=${WHATSAPP_CONVERSATION_GAP_MINUTES:-1440}
+      # Optional
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - AISENSY_API_KEY=${AISENSY_API_KEY:-}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME:-your_cloud_name}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY:-your_api_key}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET:-your_api_secret}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-placeholder-id}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-placeholder-secret}
+    networks: [crm]
+
+  web:
+    image: ${WEB_IMAGE:-devansh-crm-web:latest}
+    restart: unless-stopped
+    depends_on: [backend]
+    # Loopback only. Nothing on this stack is reachable from the internet until somebody
+    # deliberately points the existing web server at this port — which is the one step that
+    # touches the machine's shared configuration, and so is not done automatically.
+    ports:
+      - "127.0.0.1:${CRM_PORT:-8090}:80"
+    networks: [crm]
+
+volumes:
+  crmdata:
+
+networks:
+  crm:
