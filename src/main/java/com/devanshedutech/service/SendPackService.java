@@ -1,5 +1,6 @@
 package com.devanshedutech.service;
 
+import com.devanshedutech.channel.ManualWhatsAppChannel;
 import com.devanshedutech.channel.WhatsAppChannel;
 import com.devanshedutech.channel.WhatsAppSender;
 import com.devanshedutech.model.Asset;
@@ -211,6 +212,22 @@ public class SendPackService {
     }
 
     /**
+     * The same hand-off the manual channel produces, built when a provider has just failed.
+     *
+     * <p>Delegated to {@link ManualWhatsAppChannel} rather than assembled here, so the message a
+     * counsellor sees after a failure is identical to the one they would have seen had no
+     * provider been configured — same attachment links, same ordering, one implementation to
+     * keep correct.</p>
+     */
+    private String manualFallback(Lead lead, String message,
+                                  List<WhatsAppChannel.Attachment> attachments) {
+        return new ManualWhatsAppChannel()
+                .send(Lead.normalizePhone(lead.getMobileNumber()), lead.getFullName(),
+                        message, attachments)
+                .handoffUrl();
+    }
+
+    /**
      * A deep link that opens WhatsApp with the message ready to send.
      *
      * <p>This is the manual channel: the counsellor still presses send. It works today with no
@@ -363,17 +380,41 @@ public class SendPackService {
         if (result.sent()) {
             recordSent(lead, packKey, attachments.stream()
                     .map(WhatsAppChannel.Attachment::name).toList(), actor);
-        } else if (result.handoffUrl() == null) {
-            // A genuine failure is written down too. A message that did not go and left no
-            // trace is how a lead ends up looking contacted when nobody contacted them.
-            var entry = lifecycle.log(lead, ActivityType.WHATSAPP, null, Direction.OUTBOUND,
-                    "Send failed: " + pack.getName(), result.detail(), actor);
-            entry.setPackKey(packKey);
-            entry.setDeliveryStatus("failed");
+            return new SendOutcome(true, result.status(), result.detail(),
+                    result.handoffUrl(), whatsapp.active().name());
         }
 
-        return new SendOutcome(result.sent(), result.status(), result.detail(),
-                result.handoffUrl(), whatsapp.active().name());
+        if (result.handoffUrl() != null) {
+            // The manual channel did its job: nothing to record until the counsellor confirms.
+            return new SendOutcome(false, result.status(), result.detail(),
+                    result.handoffUrl(), whatsapp.active().name());
+        }
+
+        // A genuine failure is written down. A message that did not go and left no trace is how
+        // a lead ends up looking contacted when nobody contacted them.
+        var entry = lifecycle.log(lead, ActivityType.WHATSAPP, null, Direction.OUTBOUND,
+                "Send failed: " + pack.getName(), result.detail(), actor);
+        entry.setPackKey(packKey);
+        entry.setDeliveryStatus("failed");
+
+        // And then the counsellor is handed the message anyway.
+        //
+        // A provider fails for reasons that have nothing to do with the student in front of you
+        // — an expired token, a lapsed billing account, an outage. Reporting that and stopping
+        // leaves somebody mid-conversation with a prepared message, the right files attached,
+        // and no way to send any of it. There has always been a path that works without a
+        // provider at all; this is simply that path, taken when the provider cannot.
+        //
+        // Falling back is right even outside the 24-hour window. That rule constrains what the
+        // API may send, not what a person may type into their own WhatsApp.
+        String manual = manualFallback(lead, message, attachments);
+        if (manual == null) {
+            return new SendOutcome(false, result.status(), result.detail(),
+                    null, whatsapp.active().name());
+        }
+        return new SendOutcome(false, "handoff_after_failure",
+                result.detail() + " Opening it in your own WhatsApp instead — press send there.",
+                manual, whatsapp.active().name());
     }
 
     /**
