@@ -54,6 +54,22 @@ public class Asset {
     private String sizeLabel;
 
     /**
+     * Whether this also belongs on the public website.
+     *
+     * <p>Off by default, and deliberately so: the library holds fee sheets and internal notes
+     * alongside testimonials, and a flag that defaulted to on would put the first of those in
+     * front of the public the moment somebody uploaded it.</p>
+     *
+     * <p>Only videos use this today, on the Student Reviews page. It lives here rather than in a
+     * second table because the alternative is uploading every testimonial twice — once for
+     * counsellors to send and once for the website — and the second copy is the one that goes
+     * stale.</p>
+     */
+    @Column(name = "show_on_website", nullable = false)
+    @Builder.Default
+    private boolean showOnWebsite = false;
+
+    /**
      * The exact size, which decides how the thing can be delivered.
      *
      * <p>WhatsApp carries a video of up to sixteen megabytes inside the message and refuses

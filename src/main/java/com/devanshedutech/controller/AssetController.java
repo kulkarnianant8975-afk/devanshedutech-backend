@@ -123,6 +123,7 @@ public class AssetController {
         private String courseId;
         private Boolean tracked;
         private Boolean active;
+        private Boolean showOnWebsite;
     }
 
     @PostMapping
@@ -172,6 +173,11 @@ public class AssetController {
         // Retired rather than deleted: packs reference assets by key, and a deletion would leave
         // a pack quietly sending one attachment fewer than it says it does.
         if (request.getActive() != null) asset.setActive(request.getActive());
+        // Only a video can go on the Student Reviews page, and the check lives here rather than
+        // in the browser: this endpoint is what actually decides what the public sees.
+        if (request.getShowOnWebsite() != null) {
+            asset.setShowOnWebsite(request.getShowOnWebsite() && "VIDEO".equals(asset.getType()));
+        }
 
         return assets.save(asset);
     }
