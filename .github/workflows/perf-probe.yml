@@ -128,3 +128,26 @@ jobs:
           curl -sS -o sw.js -w '  /sw.js -> %{http_code}, %{size_download} bytes\n' "$SITE/sw.js"
           # A precached index.html is how a browser keeps serving last week's app forever.
           grep -o 'index.html' sw.js | head -1 | sed 's/^/  sw precaches: /' || echo "  sw does not name index.html"
+
+      - name: What the Student Reviews page will show
+        env:
+          SITE: ${{ inputs.site }}
+        run: |
+          # This is the endpoint the page calls, and it is public — so this is exactly what a
+          # visitor's browser gets, with no guessing about database state in between.
+          echo "== /api/public/reviews =="
+          curl -sS -w '  HTTP %{http_code}, %{size_download} bytes\n' \
+            "$SITE/api/public/reviews" -o reviews.json
+          echo
+          COUNT=$(jq 'length' reviews.json 2>/dev/null || echo "unparseable")
+          echo "  videos published to the website: $COUNT"
+          jq -r '.[] | "    \(.name)  ->  \(.url)"' reviews.json 2>/dev/null || cat reviews.json
+          echo
+          # A published video is no use if the file itself will not load.
+          FIRST=$(jq -r '.[0].url // empty' reviews.json 2>/dev/null)
+          if [ -n "$FIRST" ]; then
+            echo "== is that file actually playable =="
+            curl -sSI "$SITE$FIRST" | grep -iE '^HTTP|content-type|content-length|accept-ranges' | sed 's/^/  /'
+          else
+            echo "  Nothing published, so the page shows its \"on their way\" message."
+          fi
