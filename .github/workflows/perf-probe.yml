@@ -107,7 +107,7 @@ jobs:
           echo
           echo "== what that bundle contains =="
           curl -sS --compressed "$SITE$MAIN" -o main.js
-          for phrase in 'My Day' 'Media Library' 'Hours & Duty' 'Message Scripts' 'Student Leads' 'Add a student'; do
+          for phrase in 'My Day' 'Media Library' 'Attach the ' 'Take theirs' 'Attach from the Media Library' 'Book a free demo class'; do
             if grep -qF "$phrase" main.js; then echo "  PRESENT  $phrase"; else echo "  MISSING  $phrase"; fi
           done
           echo
