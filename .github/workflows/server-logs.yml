@@ -91,9 +91,9 @@ jobs:
             cd /srv/devanshedutech
             docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -c \
               "SELECT type, active, tracked, count(*), min(name) AS example
-                 FROM asset GROUP BY type, active, tracked ORDER BY type;" 2>&1 || echo "  query failed"
+                 FROM assets GROUP BY type, active, tracked ORDER BY type;" 2>&1 || echo "  query failed"
             echo
             docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -c \
               "SELECT key, type, active, course_id IS NOT NULL AS course_specific, name
-                 FROM asset ORDER BY type, name;" 2>&1 || echo "  listing failed"
+                 FROM assets ORDER BY type, name;" 2>&1 || echo "  listing failed"
           '
