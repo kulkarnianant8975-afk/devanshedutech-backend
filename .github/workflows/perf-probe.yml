@@ -105,10 +105,23 @@ jobs:
           MAIN=$(grep -o '/assets/index-[A-Za-z0-9_-]*\.js' live.html | head -1)
           echo "  index.html points at: $MAIN"
           echo
-          echo "== what that bundle contains =="
+          echo "== what the app actually contains =="
+          # Every route on this site is lazy-loaded, so the entry chunk contains almost none of
+          # the app. Grepping only that file reported "My Day" as missing from a site that
+          # plainly has it. The chunk filenames are referenced from inside the entry bundle, so
+          # they are pulled out of it and searched too.
           curl -sS --compressed "$SITE$MAIN" -o main.js
-          for phrase in 'My Day' 'Media Library' 'Attach the ' 'Take theirs' 'Attach from the Media Library' 'Book a free demo class'; do
-            if grep -qF "$phrase" main.js; then echo "  PRESENT  $phrase"; else echo "  MISSING  $phrase"; fi
+          grep -oE '"?/?assets/[A-Za-z0-9_-]+\.js' main.js \
+            | tr -d '"' | sed 's#^/*#/#' | sort -u > chunks.txt
+          echo "  entry plus $(wc -l < chunks.txt) lazy chunk(s)"
+          cat main.js > all.js
+          while read -r chunk; do
+            curl -sS --compressed "$SITE$chunk" >> all.js 2>/dev/null || true
+          done < chunks.txt
+          echo "  searching $(wc -c < all.js) bytes of application code"
+          echo
+          for phrase in 'My Day' 'Media Library' 'Attach the ' 'Take theirs' 'Book a free demo class'; do
+            if grep -qF "$phrase" all.js; then echo "  PRESENT  $phrase"; else echo "  MISSING  $phrase"; fi
           done
           echo
           echo "== service worker =="
