@@ -97,13 +97,22 @@ class WhatsAppSenderTest {
     }
 
     @Test
-    @DisplayName("attachments are named in a manual hand-off rather than silently dropped")
-    void manualHandoffNamesAttachments() {
+    @DisplayName("attachments ride along in a manual hand-off rather than being silently dropped")
+    void manualHandoffCarriesAttachments() {
+        // This used to assert the opposite: that the counsellor was TOLD what to attach. That
+        // reads as reasonable and is not — the files are on the server, so acting on it means
+        // downloading each one to a phone mid-conversation, and the brochure never arrived.
+        // A deep link still cannot carry a file, so the file goes in as a link instead.
         var result = sender("", "").send("9876543210", "Rohit", "Hi",
-                List.of(new WhatsAppChannel.Attachment("Data Analytics — syllabus", "PDF", "/x.pdf")));
+                List.of(new WhatsAppChannel.Attachment("Data Analytics — syllabus", "PDF",
+                        "https://www.devanshedutech.com/api/public/a/tok")));
 
-        assertTrue(result.detail().contains("Data Analytics — syllabus"),
-                "a deep link cannot carry files, so the counsellor must be told what to attach");
+        String text = java.net.URLDecoder.decode(
+                result.handoffUrl().substring(result.handoffUrl().indexOf("?text=") + 6),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(text.contains("Data Analytics — syllabus"), "the file is named in the message");
+        assertTrue(text.contains("https://www.devanshedutech.com/api/public/a/tok"),
+                "and reachable, which is the only form a deep link can carry");
     }
 
     @Test

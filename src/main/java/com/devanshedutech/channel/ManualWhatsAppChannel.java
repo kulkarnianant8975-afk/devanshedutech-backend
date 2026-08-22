@@ -28,16 +28,41 @@ public class ManualWhatsAppChannel implements WhatsAppChannel {
         if (number == null) {
             return SendResult.failed("This lead has no usable phone number.");
         }
-        String url = "https://wa.me/" + number + "?text="
-                + URLEncoder.encode(message, StandardCharsets.UTF_8);
 
-        // Attachments cannot ride along on a deep link, so they are named in the message rather
-        // than silently dropped — a counsellor who is told what to attach will attach it.
+        String full = withAttachments(message, attachments);
+        String url = "https://wa.me/" + number + "?text="
+                + URLEncoder.encode(full, StandardCharsets.UTF_8);
+
         String detail = attachments.isEmpty()
                 ? "Opens in your WhatsApp, ready to send."
-                : "Opens in your WhatsApp. Attach: "
-                  + attachments.stream().map(Attachment::name).reduce((a, b) -> a + ", " + b).orElse("");
+                : "Opens in your WhatsApp with the message and " + attachments.size()
+                  + " link" + (attachments.size() == 1 ? "" : "s") + " ready to send.";
 
         return SendResult.handoff(url, detail);
+    }
+
+    /**
+     * Puts the brochure and the video into the message as links.
+     *
+     * <p>A deep link carries text and nothing else — there is no way to pre-attach a file to
+     * one. This used to list the attachments by name and ask the counsellor to attach them,
+     * which reads as reasonable and is not: those files live on the server, so following that
+     * instruction means downloading each one to a phone first, mid-conversation. Nobody does
+     * that, so in practice the brochure simply never arrived.</p>
+     *
+     * <p>A link is the form that actually works here, and it is the better one besides — these
+     * URLs are per-lead and tracked, so the CRM can see that a student opened the syllabus.
+     * An attachment tells you nothing after it leaves.</p>
+     */
+    private String withAttachments(String message, List<Attachment> attachments) {
+        StringBuilder out = new StringBuilder(message);
+        for (Attachment a : attachments) {
+            if (a.url() == null || a.url().isBlank()) continue;
+            // Already named in the text — the pack's own links are appended upstream, and a URL
+            // repeated twice in one message looks like a mistake to the student reading it.
+            if (message.contains(a.url())) continue;
+            out.append("\n\n").append(a.name()).append(":\n").append(a.url());
+        }
+        return out.toString();
     }
 }

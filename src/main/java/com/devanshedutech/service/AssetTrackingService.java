@@ -176,6 +176,23 @@ public class AssetTrackingService {
         return ROBOTS.stream().anyMatch(ua::contains);
     }
 
+    /**
+     * Makes a stored asset path into something that works outside this application.
+     *
+     * <p>A tracked asset already comes back absolute. An untracked one does not — it stays as
+     * "/api/public/brochure/download", which is fine for a browser already on the site and is a
+     * dead link the moment it is pasted into WhatsApp. That is exactly where these end up when
+     * a counsellor sends by hand, so the absolute form is what they need.</p>
+     *
+     * <p>Returns the URL unchanged when no public base is configured. A relative link is a poor
+     * outcome; inventing a hostname would be a worse one.</p>
+     */
+    public String absoluteUrl(String url) {
+        String base = baseUrl();
+        if (url == null || base == null) return url;
+        return absolute(url, base);
+    }
+
     private String baseUrl() {
         if (publicBaseUrl == null || publicBaseUrl.isBlank()) return null;
         return publicBaseUrl.endsWith("/")

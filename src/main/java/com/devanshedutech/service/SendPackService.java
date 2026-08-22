@@ -170,7 +170,12 @@ public class SendPackService {
                 // Tracked assets go out as this lead's own link, so opening one is recorded
                 // against them. Untrackable ones fall back to the plain URL rather than
                 // sending a student a link that does not work.
-                String sent = tracking.trackedUrl(lead, a.getKey(), name, url, a.isTracked());
+                // Absolute, always. These links are read inside WhatsApp, where a path
+                // beginning with a slash means nothing at all. A tracked asset is already
+                // absolute; an untracked one would otherwise go out as "/api/public/..." and
+                // arrive at a student as unclickable text.
+                String sent = tracking.absoluteUrl(
+                        tracking.trackedUrl(lead, a.getKey(), name, url, a.isTracked()));
                 // A video too big for a WhatsApp message becomes a link to itself. Same file,
                 // same tracking, delivered the only way WhatsApp allows.
                 String type = fitsInsideWhatsApp(a.getType(), a.getSizeBytes()) ? a.getType() : "LINK";
