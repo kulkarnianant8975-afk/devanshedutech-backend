@@ -1,0 +1,84 @@
+name: DB repair
+
+# Additive schema fixes that Hibernate could not make on its own.
+#
+# `ddl-auto: update` adds new columns, but it emits them without a default — and PostgreSQL
+# refuses to add a NOT NULL column to a table that already has rows unless one is given. The
+# schema update then fails quietly at startup and every later query on that table dies on a
+# column that does not exist, which takes down far more than the feature the column was for.
+#
+# The statements here are fixed and idempotent, not an input. An arbitrary-SQL button reachable
+# by anyone with repo access is a much larger thing than the problem it solves, and `ADD COLUMN
+# IF NOT EXISTS` can be run twice with no consequence either way.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up the deploy key and pin the host
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" \
+            | tr -d '\r' \
+            | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+            | grep -v '^$' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          HOST_IN_KEY=$(awk '{print $1}' ~/.ssh/known_hosts | head -1)
+          if [ "$HOST_IN_KEY" != "${{ secrets.VPS_HOST }}" ]; then
+            KEY_PART=$(cut -d' ' -f2- ~/.ssh/known_hosts | head -1)
+            echo "${{ secrets.VPS_HOST }} $KEY_PART" >> ~/.ssh/known_hosts
+          fi
+
+      - name: Add any missing columns
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=30 "root@$HOST" '
+            cd /srv/devanshedutech
+            docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -v ON_ERROR_STOP=1 -c "
+              ALTER TABLE assets
+                ADD COLUMN IF NOT EXISTS show_on_website boolean NOT NULL DEFAULT false;
+            "
+            echo
+            echo "== assets columns now =="
+            docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -c "
+              SELECT column_name, data_type, is_nullable, column_default
+                FROM information_schema.columns
+               WHERE table_name = '"'"'assets'"'"'
+               ORDER BY ordinal_position;
+            "
+          '
+
+      - name: Restart the backend so it picks the schema up cleanly
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=30 "root@$HOST" '
+            cd /srv/devanshedutech && docker compose restart dvt-backend
+          '
+
+      - name: Check the assets table can actually be read again
+        env:
+          SITE: https://www.devanshedutech.com
+        run: |
+          # Waiting rather than sleeping a fixed amount: the point is that it answers, not that
+          # some number of seconds went by.
+          for i in $(seq 1 30); do
+            CODE=$(curl -sS -o body.json -w '%{http_code}' "$SITE/api/public/reviews" || echo 000)
+            if [ "$CODE" = "200" ]; then
+              echo "  /api/public/reviews -> 200"
+              jq -r '"  videos published: \(length)"' body.json
+              jq -r '.[] | "    \(.name)"' body.json
+              exit 0
+            fi
+            echo "  attempt $i: HTTP $CODE"
+            sleep 5
+          done
+          echo "::error::The endpoint did not recover."
+          cat body.json
+          exit 1

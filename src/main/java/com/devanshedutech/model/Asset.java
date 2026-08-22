@@ -64,8 +64,15 @@ public class Asset {
      * second table because the alternative is uploading every testimonial twice — once for
      * counsellors to send and once for the website — and the second copy is the one that goes
      * stale.</p>
+     *
+     * <p>The default is written into the column definition, not just the field. Without it,
+     * adding a NOT NULL column to a table that already has rows is rejected by PostgreSQL, the
+     * schema update fails quietly at startup, and every subsequent query on this table dies on a
+     * column that does not exist — which took the Media Library and the send panel down with it,
+     * not only the page this flag was added for.</p>
      */
-    @Column(name = "show_on_website", nullable = false)
+    @Column(name = "show_on_website", nullable = false,
+            columnDefinition = "boolean not null default false")
     @Builder.Default
     private boolean showOnWebsite = false;
 
