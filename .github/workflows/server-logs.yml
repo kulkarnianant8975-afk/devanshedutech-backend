@@ -90,8 +90,8 @@ jobs:
           ssh -i ~/.ssh/deploy -o BatchMode=yes "root@$HOST" '
             cd /srv/devanshedutech
             docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -c \
-              "SELECT type, active, tracked, count(*), min(name) AS example
-                 FROM assets GROUP BY type, active, tracked ORDER BY type;" 2>&1 || echo "  query failed"
+              "SELECT id, name, type, active, show_on_website
+                 FROM assets WHERE type = 'VIDEO' ORDER BY name;" 2>&1 || echo "  query failed"
             echo
             docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -c \
               "SELECT key, type, active, course_id IS NOT NULL AS course_specific, name
