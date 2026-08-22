@@ -79,3 +79,21 @@ jobs:
             echo "== what the proxy will accept =="
             grep -n "max_size" frontend/Caddyfile.static 2>/dev/null || echo "  no request_body max_size set in frontend/Caddyfile.static"
           '
+
+      - name: What is actually in the media library
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          # Read-only, and a fixed query rather than an input: the send panel hides its picker
+          # entirely when the library comes back empty, so "no dropdown" and "nothing to put in
+          # it" look identical from a browser. This tells them apart.
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "root@$HOST" '
+            cd /srv/devanshedutech
+            docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -c \
+              "SELECT type, active, tracked, count(*), min(name) AS example
+                 FROM asset GROUP BY type, active, tracked ORDER BY type;" 2>&1 || echo "  query failed"
+            echo
+            docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -c \
+              "SELECT key, type, active, course_id IS NOT NULL AS course_specific, name
+                 FROM asset ORDER BY type, name;" 2>&1 || echo "  listing failed"
+          '
