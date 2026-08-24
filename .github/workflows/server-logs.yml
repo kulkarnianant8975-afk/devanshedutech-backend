@@ -121,3 +121,18 @@ jobs:
             grep -E "^(SUPER_ADMIN_EMAILS|ADMIN_EMAILS|MANAGER_EMAILS|COUNSELLOR_EMAILS)=" .env \
               || echo "  .env does not mention any of them"
           '
+
+      - name: Which accounts exist, and at what level
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          # No password column, hashed or otherwise. Knowing an account exists is what is needed
+          # here; a hash in a shared log is a credential to attack offline at leisure.
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=30 "root@$HOST" '
+            cd /srv/devanshedutech
+            docker compose exec -T dvt-db psql -U devanshedutech -d devanshedutech -c \
+              "SELECT email, role, active,
+                      (password IS NOT NULL) AS has_password,
+                      last_login_at
+                 FROM users ORDER BY role, email;"
+          '
