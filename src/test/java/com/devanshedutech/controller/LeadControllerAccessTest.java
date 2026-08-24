@@ -75,7 +75,8 @@ class LeadControllerAccessTest {
         when(access.requireUser(any())).thenReturn(sneha);
 
         controller = new LeadController(leads, capture, lifecycle, new LeadMapper(users, batchRepo), access, ladder, ladderScheduler, notifications, rateLimiter,
-                mock(com.devanshedutech.service.AssetTrackingService.class));
+                mock(com.devanshedutech.service.AssetTrackingService.class),
+                mock(com.devanshedutech.repository.LeadActivityRepository.class));
     }
 
     private Lead leadOwnedBy(String owner) {
