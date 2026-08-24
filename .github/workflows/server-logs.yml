@@ -97,3 +97,27 @@ jobs:
               "SELECT key, type, active, course_id IS NOT NULL AS course_specific, name
                  FROM assets ORDER BY type, name;" 2>&1 || echo "  listing failed"
           '
+
+      - name: Which addresses are pinned to which role
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          # Only the role lists. The same environment holds the database password and the
+          # WhatsApp tokens, so this names the four variables it wants rather than dumping env —
+          # a debugging step that prints everything is how a secret ends up in a shared log.
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=30 "root@$HOST" '
+            cd /srv/devanshedutech
+            echo "== as the running container sees them =="
+            for V in SUPER_ADMIN_EMAILS ADMIN_EMAILS MANAGER_EMAILS COUNSELLOR_EMAILS; do
+              VAL=$(docker compose exec -T dvt-backend printenv "$V" 2>/dev/null)
+              if [ -z "$VAL" ]; then
+                echo "  $V is empty or unset"
+              else
+                echo "  $V = $VAL"
+              fi
+            done
+            echo
+            echo "== whether .env sets them at all =="
+            grep -E "^(SUPER_ADMIN_EMAILS|ADMIN_EMAILS|MANAGER_EMAILS|COUNSELLOR_EMAILS)=" .env \
+              || echo "  .env does not mention any of them"
+          '
