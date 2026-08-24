@@ -93,9 +93,14 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS}
       # Compose always sends this key, so an empty value here would override the default in
       # application.yml rather than fall back to it — Spring uses its default only when a
-      # property cannot be resolved, and "" resolves perfectly well. The address therefore lives
-      # here, where .env can still override it.
-      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-madhav.thefundaacademy@gmail.com}
+      # property cannot be resolved, and "" resolves perfectly well. The addresses therefore live
+      # here, where .env can still override them.
+      #
+      # Both, not one. kulkarnianant8975 is the super admin the running server already has, and
+      # naming only the new address would have quietly demoted it on the next deploy — the pinned
+      # list replaces the role, it does not add to it. That is a bad way to discover how this
+      # works, and the account it would have demoted is the one nobody can currently sign in to.
+      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-kulkarnianant8975@gmail.com,madhav.thefundaacademy@gmail.com}
       MANAGER_EMAILS: ${MANAGER_EMAILS:-}
       COUNSELLOR_EMAILS: ${COUNSELLOR_EMAILS:-}
       VIEWER_EMAILS: ${VIEWER_EMAILS:-}
