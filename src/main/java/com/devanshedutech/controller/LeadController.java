@@ -4,9 +4,11 @@ import com.devanshedutech.crm.LeadMapper;
 import com.devanshedutech.crm.LeadSpecifications;
 import com.devanshedutech.dto.LeadDTOs.*;
 import com.devanshedutech.model.Lead;
+import com.devanshedutech.model.LeadActivity;
 import com.devanshedutech.model.Permission;
 import com.devanshedutech.model.User;
 import com.devanshedutech.model.crm.*;
+import com.devanshedutech.repository.LeadActivityRepository;
 import com.devanshedutech.repository.LeadRepository;
 import com.devanshedutech.security.AccessService;
 import com.devanshedutech.service.AssetTrackingService;
@@ -31,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -55,6 +58,7 @@ public class LeadController {
     private final NotificationService notifications;
     private final RateLimiter rateLimiter;
     private final AssetTrackingService tracking;
+    private final LeadActivityRepository activityRepository;
 
     public LeadController(LeadRepository leadRepository,
                           LeadCaptureService capture,
@@ -65,7 +69,8 @@ public class LeadController {
                           LeadLadderScheduler ladderScheduler,
                           NotificationService notifications,
                           RateLimiter rateLimiter,
-                          AssetTrackingService tracking) {
+                          AssetTrackingService tracking,
+                          LeadActivityRepository activityRepository) {
         this.leadRepository = leadRepository;
         this.capture = capture;
         this.lifecycle = lifecycle;
@@ -76,6 +81,7 @@ public class LeadController {
         this.notifications = notifications;
         this.rateLimiter = rateLimiter;
         this.tracking = tracking;
+        this.activityRepository = activityRepository;
     }
 
     // ==================================================================
