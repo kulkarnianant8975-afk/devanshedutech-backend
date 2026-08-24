@@ -115,10 +115,12 @@ app:
   # it to them. Day-to-day role changes are made in the Team screen and stored on the user.
   # Previously ADMIN_EMAILS was hardcoded in two Java classes that could silently disagree.
   super-admin:
-    # Pinned here so the role survives a fresh database — the same bootstrap path the admin
-    # addresses below already use. An address is not a credential; the password is set through
-    # the app and is deliberately not in this file or anywhere else in the repository.
-    emails: ${SUPER_ADMIN_EMAILS:madhav.thefundaacademy@gmail.com}
+    # Empty by default and set by deployment. The production address lives in
+    # deploy/docker-compose.yml, because compose always sends this variable and an empty value
+    # from there would override anything defaulted here — two places naming it would mean one of
+    # them silently losing. An address is not a credential either way; no password is in this
+    # repository.
+    emails: ${SUPER_ADMIN_EMAILS:}
   admin:
     emails: ${ADMIN_EMAILS:kulkarnianant8975@gmail.com,dipaliatdevanshedutech@gmail.com}
   manager:

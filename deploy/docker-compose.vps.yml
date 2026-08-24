@@ -91,7 +91,11 @@ services:
       # (OAuth2LoginSuccessHandler reads allowedOrigins[0]).
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       ADMIN_EMAILS: ${ADMIN_EMAILS}
-      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-}
+      # Compose always sends this key, so an empty value here would override the default in
+      # application.yml rather than fall back to it — Spring uses its default only when a
+      # property cannot be resolved, and "" resolves perfectly well. The address therefore lives
+      # here, where .env can still override it.
+      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-madhav.thefundaacademy@gmail.com}
       MANAGER_EMAILS: ${MANAGER_EMAILS:-}
       COUNSELLOR_EMAILS: ${COUNSELLOR_EMAILS:-}
       VIEWER_EMAILS: ${VIEWER_EMAILS:-}
