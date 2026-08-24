@@ -22,6 +22,18 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-jpa</artifactId>
     </dependency>
+
+    <!--
+      Sessions in the database rather than in the application's memory.
+
+      In memory, every restart signs everybody out — and a restart is not a rare event here, it
+      is what a deploy is. Counsellors were being thrown back to the login screen mid-call
+      several times a day for no reason they could see, which reads as a broken product.
+    -->
+    <dependency>
+      <groupId>org.springframework.session</groupId>
+      <artifactId>spring-session-jdbc</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-client</artifactId>

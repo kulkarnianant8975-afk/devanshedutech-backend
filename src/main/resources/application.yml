@@ -1,4 +1,13 @@
 spring:
+  session:
+    # Sessions live in PostgreSQL, so a deploy no longer signs everybody out. In memory they die
+    # with the process, and a deploy is exactly that — which is why counsellors were being
+    # returned to the login screen several times a day. The schema is created on first start;
+    # without that the tables are simply absent and every login fails.
+    store-type: jdbc
+    jdbc:
+      initialize-schema: always
+
   application:
     name: backend-springboot
 
@@ -75,6 +84,13 @@ server:
     min-response-size: 1024  # Only compress responses > 1KB
   servlet:
     session:
+      # A working day, not half an hour.
+      #
+      # Spring's default is 30 minutes idle, which is shorter than a counsellor spends on one
+      # difficult call — so the CRM logged people out while they were working in it. The clock
+      # restarts on every request, so this is eight hours of genuine inactivity, not eight hours
+      # from sign-in.
+      timeout: 8h
       cookie:
         # Secure cookies are correct in production, where Caddy terminates TLS. A browser
         # refuses to store one over plain HTTP, so local staging on http://localhost would
