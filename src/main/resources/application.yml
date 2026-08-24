@@ -115,7 +115,10 @@ app:
   # it to them. Day-to-day role changes are made in the Team screen and stored on the user.
   # Previously ADMIN_EMAILS was hardcoded in two Java classes that could silently disagree.
   super-admin:
-    emails: ${SUPER_ADMIN_EMAILS:}
+    # Pinned here so the role survives a fresh database — the same bootstrap path the admin
+    # addresses below already use. An address is not a credential; the password is set through
+    # the app and is deliberately not in this file or anywhere else in the repository.
+    emails: ${SUPER_ADMIN_EMAILS:madhav.thefundaacademy@gmail.com}
   admin:
     emails: ${ADMIN_EMAILS:kulkarnianant8975@gmail.com,dipaliatdevanshedutech@gmail.com}
   manager:
