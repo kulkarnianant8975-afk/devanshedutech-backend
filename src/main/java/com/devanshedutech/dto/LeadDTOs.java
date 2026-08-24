@@ -76,6 +76,23 @@ public class LeadDTOs {
         private String reason;
     }
 
+    /** One follow-up, as it appears in the cross-lead activity log. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class ContactLogResponse {
+        private String id;
+        private String leadId;
+        private String studentName;
+        private String course;
+        private String type;
+        private String outcomeLabel;
+        /** What the student actually said, when the counsellor wrote it down. */
+        private String note;
+        private String counsellor;
+        private LocalDateTime at;
+        /** Where this student goes next, so the log shows follow-ups that were left unbooked. */
+        private LocalDate nextTouchOn;
+    }
+
     /** Recording what happened on a contact — the most-used write in the CRM. */
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class OutcomeRequest {

@@ -25,6 +25,28 @@ public interface LeadActivityRepository extends JpaRepository<LeadActivity, Stri
     List<Object[]> countByCounsellorBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     /**
+     * Every actual contact in a window, newest first, optionally for one counsellor.
+     *
+     * <p>Contacts only — the same filter {@link #countRealTouches} uses. A feed that also carried
+     * grade changes, stage moves and system entries would answer "what happened in the CRM"
+     * when the question being asked is "who did we speak to".</p>
+     *
+     * <p>The counsellor filter is a nullable parameter rather than a second method because the
+     * two differ by one predicate, and two queries drift apart the moment one is changed.</p>
+     */
+    @Query("select a from LeadActivity a "
+         + "where a.createdAt between :from and :to "
+         + "and a.type in (com.devanshedutech.model.crm.ActivityType.CALL, "
+         + "com.devanshedutech.model.crm.ActivityType.WHATSAPP, "
+         + "com.devanshedutech.model.crm.ActivityType.EMAIL, "
+         + "com.devanshedutech.model.crm.ActivityType.DEMO) "
+         + "and (:counsellorId is null or a.createdById = :counsellorId) "
+         + "order by a.createdAt desc")
+    List<LeadActivity> findContactsBetween(@Param("from") LocalDateTime from,
+                                           @Param("to") LocalDateTime to,
+                                           @Param("counsellorId") String counsellorId);
+
+    /**
      * The deepest stage every lead has ever reached, in one query.
      *
      * <p>Conversion rates need history, not the current snapshot: a student who attended a demo

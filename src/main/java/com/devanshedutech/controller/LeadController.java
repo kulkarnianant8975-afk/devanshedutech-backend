@@ -325,6 +325,60 @@ public class LeadController {
                 .build());
     }
 
+    /**
+     * Every follow-up made in a window, across all leads.
+     *
+     * <p>The timeline answers "what happened to this student". Nothing answered "what did we
+     * actually do this week", so a counsellor could not review their own day without opening
+     * leads one at a time, and an owner could not see whether a counsellor's leads were being
+     * worked at all until the numbers moved — by which point the batch has started.</p>
+     *
+     * <p>Scope follows the same rule as every other lead read: a counsellor sees their own work
+     * whatever they ask for, and only a privileged caller may filter by somebody else. The
+     * student's name is resolved here rather than left as an id, because a list of activity
+     * against UUIDs is not a thing anybody can review.</p>
+     */
+    @GetMapping("/activity")
+    @PreAuthorize("hasAnyAuthority('PERM_LEAD_VIEW_ALL','PERM_LEAD_VIEW_OWN')")
+    public ResponseEntity<List<ContactLogResponse>> activity(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String counsellorId,
+            Authentication auth) {
+
+        LocalDate start = from == null || from.isBlank() ? LocalDate.now().minusDays(6) : LocalDate.parse(from);
+        LocalDate end = to == null || to.isBlank() ? LocalDate.now() : LocalDate.parse(to);
+        if (end.isBefore(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "The end of the range is before its start.");
+        }
+
+        String scope = resolveOwnerScope(auth, counsellorId);
+        List<LeadActivity> contacts = activityRepository.findContactsBetween(
+                start.atStartOfDay(), end.plusDays(1).atStartOfDay(), scope);
+
+        // One lookup for the whole page rather than one per row.
+        Map<String, Lead> leads = leadRepository.findAllById(
+                        contacts.stream().map(LeadActivity::getLeadId).distinct().toList())
+                .stream().collect(Collectors.toMap(Lead::getId, l -> l));
+
+        return ResponseEntity.ok(contacts.stream().map(a -> {
+            Lead lead = leads.get(a.getLeadId());
+            return ContactLogResponse.builder()
+                    .id(a.getId())
+                    .leadId(a.getLeadId())
+                    .studentName(lead == null ? "A removed lead" : lead.getFullName())
+                    .course(lead == null ? null : lead.getCourseInterested())
+                    .type(a.getType() == null ? null : a.getType().name())
+                    .outcomeLabel(a.getOutcome() == null ? a.getSummary() : a.getOutcome().getLabel())
+                    .note(a.getDetail())
+                    .counsellor(a.getCreatedByName())
+                    .at(a.getCreatedAt())
+                    .nextTouchOn(lead == null ? null : lead.getNextTouchOn())
+                    .build();
+        }).toList());
+    }
+
     // ==================================================================
     // Working the pipeline
     // ==================================================================
