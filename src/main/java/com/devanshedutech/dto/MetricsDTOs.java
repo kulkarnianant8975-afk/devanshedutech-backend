@@ -50,6 +50,13 @@ public class MetricsDTOs {
         private Double conversionRate;
     }
 
+    /** New enquiries on one day. Weekly buckets hide the day a campaign landed. */
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class DailyCount {
+        private LocalDate day;
+        private long leads;
+    }
+
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class WeeklyCount {
         private LocalDate weekStarting;
@@ -67,6 +74,10 @@ public class MetricsDTOs {
         private long blankNextTouch;
         /** Leads that decayed to lost without ever really being worked. */
         private long lostUnworked;
+        /** Contacts actually made in the window — the work, as distinct from the caseload. */
+        private long followUpsDone;
+        /** Demos booked by this counsellor in the window. */
+        private long demosBooked;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -76,7 +87,15 @@ public class MetricsDTOs {
         private List<SourcePerformance> sources;
         private List<WeeklyCount> weekly;
         private List<CounsellorScore> counsellors;
+        private List<DailyCount> daily;
         private long totalLeads;
+        /** Headline totals for the window, so tiles are not derived in a browser. */
+        private long newLeadsInWindow;
+        private long demosBookedInWindow;
+        private long enrolmentsInWindow;
+        private long followUpsInWindow;
+        /** Active leads whose follow-up date has passed — the work that did not happen. */
+        private long missedFollowUps;
         private String windowDescription;
     }
 }

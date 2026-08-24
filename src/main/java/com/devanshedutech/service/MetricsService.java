@@ -1,5 +1,6 @@
 package com.devanshedutech.service;
 
+import com.devanshedutech.dto.MetricsDTOs;
 import com.devanshedutech.dto.MetricsDTOs.*;
 import com.devanshedutech.model.Lead;
 import com.devanshedutech.model.User;
@@ -74,8 +75,21 @@ public class MetricsService {
                 .funnel(funnel(rows, deepest))
                 .sources(sourcePerformance())
                 .weekly(weekly(weeks))
-                .counsellors(counsellorScores())
+                .counsellors(counsellorScores(since))
+                .daily(daily(since.toLocalDate(), today))
                 .totalLeads(total)
+                .newLeadsInWindow(leadRepository.findAll().stream()
+                        .filter(l -> l.getCreatedAt() != null && !l.getCreatedAt().isBefore(since)).count())
+                .demosBookedInWindow(activityRepository.findContactsBetween(since, LocalDateTime.now(), null)
+                        .stream().filter(c -> c.getOutcome() == com.devanshedutech.model.crm.OutcomeCode.DEMO_BOOKED)
+                        .count())
+                .enrolmentsInWindow(leadRepository.findAll().stream()
+                        .filter(l -> l.getStage() == Stage.ENROLLED
+                                && l.getUpdatedAt() != null && !l.getUpdatedAt().isBefore(since)).count())
+                .followUpsInWindow(activityRepository.findContactsBetween(since, LocalDateTime.now(), null).size())
+                .missedFollowUps(leadRepository.findAll().stream()
+                        .filter(l -> l.isActive() && l.getNextTouchOn() != null
+                                && l.getNextTouchOn().isBefore(today)).count())
                 .windowDescription("Last " + weeks + " weeks, to " + today)
                 .build();
     }
@@ -279,7 +293,27 @@ public class MetricsService {
         return out;
     }
 
-    private List<CounsellorScore> counsellorScores() {
+    /**
+     * New enquiries per day across the window, including the days nobody enquired.
+     *
+     * <p>Those zero days are the point. A series that only carries the days something happened
+     * draws a busy, even line over a month that was in fact silent for eleven days of it.</p>
+     */
+    private List<MetricsDTOs.DailyCount> daily(LocalDate from, LocalDate to) {
+        Map<LocalDate, Long> counts = leadRepository.findAll().stream()
+                .filter(l -> l.getCreatedAt() != null)
+                .map(l -> l.getCreatedAt().toLocalDate())
+                .filter(d -> !d.isBefore(from) && !d.isAfter(to))
+                .collect(Collectors.groupingBy(d -> d, Collectors.counting()));
+
+        List<MetricsDTOs.DailyCount> out = new java.util.ArrayList<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            out.add(MetricsDTOs.DailyCount.builder().day(d).leads(counts.getOrDefault(d, 0L)).build());
+        }
+        return out;
+    }
+
+    private List<CounsellorScore> counsellorScores(LocalDateTime since) {
         List<Lead> all = leadRepository.findAll();
         Map<String, String> names = userRepository.findAll().stream()
                 .collect(Collectors.toMap(User::getId, User::displayNameOrEmail, (a, b) -> a));
@@ -288,6 +322,20 @@ public class MetricsService {
         Map<String, List<Lead>> byOwner = all.stream()
                 .filter(l -> l.getAssignedToId() != null)
                 .collect(Collectors.groupingBy(Lead::getAssignedToId));
+
+        // What each person actually did in the window, as opposed to how many leads they hold.
+        // A counsellor with two hundred leads and nine calls is invisible in a caseload count.
+        List<com.devanshedutech.model.LeadActivity> contacts =
+                activityRepository.findContactsBetween(since, LocalDateTime.now(), null);
+        Map<String, Long> doneBy = contacts.stream()
+                .filter(c -> c.getCreatedById() != null)
+                .collect(Collectors.groupingBy(
+                        com.devanshedutech.model.LeadActivity::getCreatedById, Collectors.counting()));
+        Map<String, Long> demosBy = contacts.stream()
+                .filter(c -> c.getCreatedById() != null
+                        && c.getOutcome() == com.devanshedutech.model.crm.OutcomeCode.DEMO_BOOKED)
+                .collect(Collectors.groupingBy(
+                        com.devanshedutech.model.LeadActivity::getCreatedById, Collectors.counting()));
 
         return byOwner.entrySet().stream().map(e -> {
             List<Lead> owned = e.getValue();
@@ -303,6 +351,8 @@ public class MetricsService {
                             && l.getNextTouchOn() != null && l.getNextTouchOn().isBefore(today)).count())
                     .blankNextTouch(owned.stream().filter(Lead::hasBlankNextTouch).count())
                     .lostUnworked(owned.stream().filter(l -> Boolean.TRUE.equals(l.getLostUnworked())).count())
+                    .followUpsDone(doneBy.getOrDefault(e.getKey(), 0L))
+                    .demosBooked(demosBy.getOrDefault(e.getKey(), 0L))
                     .build();
         }).sorted(java.util.Comparator.comparingLong(CounsellorScore::getActiveLeads).reversed()).toList();
     }
