@@ -11,10 +11,23 @@ import java.util.Locale;
 public enum Stage {
     NEW("New", 0),
     CONTACTED("Contacted", 1),
-    DEMO_BOOKED("Demo booked", 2),
-    DEMO_DONE("Demo done", 3),
-    FEE_DISCUSSION("Fee discussion", 4),
-    ENROLLED("Enrolled", 5),
+    /**
+     * Came to the office without booking anything first.
+     *
+     * <p>A walk-in is a stronger signal than a booked demo — somebody who travelled to Parbhani
+     * to look at the place has already decided it is worth their afternoon. Before this existed
+     * they sat in Contacted until they registered for a demo, so the board showed a visit as
+     * nothing at all, and a counsellor scanning it could not tell them from a lead who had only
+     * answered the phone.</p>
+     *
+     * <p>Placed before Demo booked because that is the usual order: they visit, then register
+     * for a demo while they are standing there.</p>
+     */
+    VISITED("Visited the office", 2),
+    DEMO_BOOKED("Demo booked", 3),
+    DEMO_DONE("Demo done", 4),
+    FEE_DISCUSSION("Fee discussion", 5),
+    ENROLLED("Enrolled", 6),
     LOST("Lost", -1);
 
     private final String label;

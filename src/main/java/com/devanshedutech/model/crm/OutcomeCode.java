@@ -33,6 +33,15 @@ public enum OutcomeCode {
     SILENT("Went silent", null, Grade.COLD, 3, false, false, new int[]{}),
 
     /** SOP 4 step 5 — a demo or campus visit was booked with a specific date and time. */
+    /**
+     * They came to the office.
+     *
+     * <p>Graded hot without asking: somebody who travelled here to look at the place has spent
+     * more than a phone call's worth of intent, and the SOP treats a campus visit and a demo as
+     * the same class of signal. Not counted as a call attempt — nobody was rung.</p>
+     */
+    VISITED("Visited the office", Stage.VISITED, Grade.HOT, 1, false, false, new int[]{}),
+
     DEMO_BOOKED("Demo booked", Stage.DEMO_BOOKED, Grade.HOT, 1, false, false, new int[]{}),
 
     /** SOP 6.7 — attended the demo. Day 1 and day 3 follow-ups are where enrolments are won. */
