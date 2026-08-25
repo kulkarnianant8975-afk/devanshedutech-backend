@@ -120,7 +120,7 @@ jobs:
           done < chunks.txt
           echo "  searching $(wc -c < all.js) bytes of application code"
           echo
-          for phrase in 'Follow-up log' 'Follow-up flow' 'most recent' 'No next follow-up booked' 'Take theirs'; do
+          for phrase in 'bg-teal-500' 'Follow-up log' 'Follow-up flow' 'Attach from the Media Library' 'How it works'; do
             if grep -qF "$phrase" all.js; then echo "  PRESENT  $phrase"; else echo "  MISSING  $phrase"; fi
           done
           echo
