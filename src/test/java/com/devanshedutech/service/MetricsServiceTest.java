@@ -139,8 +139,16 @@ class MetricsServiceTest {
 
         var result = metrics.pipelineMetrics(8);
         assertNull(step(result, Stage.NEW).getDropFromPrevious(), "the first stage has nothing to drop from");
-        // 15 reached Contacted, 5 reached Demo booked: a two-thirds drop.
-        assertEquals(66.7, step(result, Stage.DEMO_BOOKED).getDropFromPrevious(), 0.1);
+
+        // Fifteen reached Contacted and five got past it. None of those five visited the office
+        // — they booked a demo directly — so the whole two-thirds drop lands on Visited, the
+        // stage immediately after Contacted.
+        assertEquals(66.7, step(result, Stage.VISITED).getDropFromPrevious(), 0.1);
+
+        // And nothing is lost between Visited and Demo booked, which is the point of the test:
+        // the drop is attributed to the step it happened at rather than smeared across the
+        // funnel or measured against the total.
+        assertEquals(0.0, step(result, Stage.DEMO_BOOKED).getDropFromPrevious(), 0.1);
     }
 
     // ---------------- honest rates ----------------
