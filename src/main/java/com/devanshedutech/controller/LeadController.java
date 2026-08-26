@@ -424,6 +424,43 @@ public class LeadController {
             lead.setLostReason(request.getLostReason());
             lead.setLostNote(request.getLostNote());
         }
+        // The student's own details. Each is written only when sent, so a form that submits one
+        // field cannot blank the rest.
+        if (request.getFullName() != null) {
+            String name = request.getFullName().trim();
+            if (name.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A student needs a name.");
+            }
+            lead.setFullName(name);
+        }
+        if (request.getEmail() != null) lead.setEmail(blankToNull(request.getEmail().trim()));
+        if (request.getCityName() != null) lead.setCityName(blankToNull(request.getCityName().trim()));
+
+        if (request.getMobileNumber() != null) {
+            String typed = request.getMobileNumber().trim();
+            String normalised = Lead.normalizePhone(typed);
+            if (normalised == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "That does not look like a phone number.");
+            }
+            // Refused rather than merged. Two records for one student means two counsellors
+            // ringing them, and silently pointing this lead at somebody else's history would be
+            // worse than saying no.
+            leadRepository.findByPhoneNormalized(normalised).stream()
+                    .filter(other -> !other.getId().equals(lead.getId()))
+                    .findFirst()
+                    .ifPresent(other -> {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                "That number already belongs to " + other.getFullName()
+                                + ". Open their record instead of moving this one onto it.");
+                    });
+
+            // Set explicitly: preUpdate only fills this in when it is null, so a changed number
+            // would otherwise keep matching the old one for every duplicate check afterwards.
+            lead.setMobileNumber(typed);
+            lead.setPhoneNormalized(normalised);
+        }
+
         if (request.getSource() != null) lead.setSource(request.getSource());
         if (request.getSourceDetail() != null) lead.setSourceDetail(request.getSourceDetail());
         if (request.getBackground() != null) lead.setBackground(request.getBackground());
@@ -620,6 +657,11 @@ public class LeadController {
         String forced = access.ownerFilter(auth);
         if (forced != null) return forced;
         return requestedOwner == null || requestedOwner.isBlank() ? null : requestedOwner;
+    }
+
+    /** An empty box on a form means "no value", not the empty string. */
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private Lead readable(String id, Authentication auth) {

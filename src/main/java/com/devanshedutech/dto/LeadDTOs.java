@@ -54,6 +54,12 @@ public class LeadDTOs {
     /** Partial update from the pipeline. Any field left null is left alone. */
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class LeadPatchRequest {
+        /** The student's own details. A name mistyped at the counter was permanent before this. */
+        private String fullName;
+        private String mobileNumber;
+        private String email;
+        private String cityName;
+
         private Grade grade;
         private Stage stage;
         private LeadSource source;
