@@ -1,0 +1,105 @@
+name: Backup verify
+
+# Proving the backup can come back.
+#
+# An untested backup is a belief. The failure everybody has is not the missing dump — it is the
+# dump that exists, has a plausible size, and turns out to be unrestorable on the one morning it
+# matters. So this restores the latest one into a scratch database and counts what came back.
+#
+# Production is never touched. The target database name is fixed in this file and is not an
+# input, because a restore pointed at the wrong database by a typo is the disaster it exists to
+# prevent.
+
+on:
+  schedule:
+    # Sunday, an hour after the nightly dump.
+    - cron: '0 22 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: devansh-backup-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up the deploy key and pin the host
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" \
+            | tr -d '\r' \
+            | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+            | grep -v '^$' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          HOST_IN_KEY=$(awk '{print $1}' ~/.ssh/known_hosts | head -1)
+          if [ "$HOST_IN_KEY" != "${{ secrets.VPS_HOST }}" ]; then
+            KEY_PART=$(cut -d' ' -f2- ~/.ssh/known_hosts | head -1)
+            echo "${{ secrets.VPS_HOST }} $KEY_PART" >> ~/.ssh/known_hosts
+          fi
+
+      - name: Restore the latest dump into a scratch database and count it
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=30 "root@$HOST" '
+            set -e
+            cd /srv/devanshedutech
+
+            LATEST=$(ls -1t backups/devansh-*.dump 2>/dev/null | head -1)
+            if [ -z "$LATEST" ]; then
+              echo "::error::There is no dump to verify. Run the Backup workflow first."
+              exit 1
+            fi
+            echo "  verifying $(basename "$LATEST")"
+
+            SCRATCH=devansh_restore_check
+            PSQL="docker compose exec -T dvt-db psql -U devanshedutech"
+
+            # From a clean slate every time, so a pass cannot be inherited from last week.
+            $PSQL -d postgres -c "DROP DATABASE IF EXISTS $SCRATCH;" >/dev/null
+            $PSQL -d postgres -c "CREATE DATABASE $SCRATCH;" >/dev/null
+
+            # --exit-on-error, so a restore that half works is a failure rather than a pass with
+            # some tables quietly missing.
+            docker compose exec -T dvt-db pg_restore -U devanshedutech \
+              -d "$SCRATCH" --no-owner --exit-on-error < "$LATEST"
+
+            echo
+            echo "== what came back, against what is live =="
+            # The dump is hours old, so a live table having a few more rows is the system
+            # working, not the backup failing. Comparing for equality would fail on every new
+            # enquiry and train everybody to ignore this job — which is exactly how an untested
+            # backup happens in the first place.
+            #
+            # What is checked is that the restore is plausible: nothing came back empty, and
+            # nothing lost a tenth of itself.
+            FAILED=0
+            for T in leads lead_activities users assets batches demos courses; do
+              LIVE=$($PSQL -d devanshedutech -tAc "SELECT count(*) FROM $T;" 2>/dev/null || echo "-")
+              BACK=$($PSQL -d "$SCRATCH"      -tAc "SELECT count(*) FROM $T;" 2>/dev/null || echo "-")
+
+              if [ "$LIVE" = "-" ] || [ "$BACK" = "-" ]; then
+                printf "  %-18s could not be counted   FAILED\n" "$T"
+                FAILED=1
+              elif [ "$LIVE" -gt 0 ] && [ "$BACK" -eq 0 ]; then
+                printf "  %-18s live %s, restored 0   EMPTY\n" "$T" "$LIVE"
+                FAILED=1
+              elif [ "$LIVE" -gt 0 ] && [ $((BACK * 100 / LIVE)) -lt 90 ]; then
+                printf "  %-18s live %s, restored %s   SHORT\n" "$T" "$LIVE" "$BACK"
+                FAILED=1
+              else
+                printf "  %-18s %6s of %s live   ok\n" "$T" "$BACK" "$LIVE"
+              fi
+            done
+
+            $PSQL -d postgres -c "DROP DATABASE IF EXISTS $SCRATCH;" >/dev/null
+            echo
+            if [ "$FAILED" = "1" ]; then
+              echo "::error::A table came back empty or badly short. The backup is not trustworthy."
+              exit 1
+            fi
+            echo "  The latest backup restores cleanly and completely."
+          '

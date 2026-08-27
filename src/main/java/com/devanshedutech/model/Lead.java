@@ -33,6 +33,7 @@ import java.time.LocalDateTime;
     @Index(name = "idx_lead_next_touch", columnList = "next_touch_on"),
     @Index(name = "idx_lead_phone_norm", columnList = "phone_normalized")
 })
+@org.hibernate.annotations.SQLRestriction("deleted_at is null")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -223,6 +224,23 @@ public class Lead {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * When this lead was deleted, or null while it is live.
+     *
+     * <p>Deleting used to remove the row. One mis-click took a student's name, their number and
+     * every note anybody had written about them, with no undo — on records that exist precisely
+     * because they are hard to acquire.</p>
+     *
+     * <p>The {@code @SQLRestriction} above keeps deleted rows out of every query written against
+     * this entity, so nothing has to remember to exclude them. Reading them back is deliberately
+     * awkward: it takes a native query, which is the recycle bin and nothing else.</p>
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by_id")
+    private String deletedById;
 
     @PrePersist
     public void prePersist() {

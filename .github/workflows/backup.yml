@@ -1,0 +1,116 @@
+name: Backup
+
+# A copy of the database somewhere the server is not.
+#
+# Until this existed there was none. Every lead, every follow-up note and the whole history of
+# who said what sat on one VPS volume, and a failed disk or a mistaken `docker volume rm` would
+# have ended the institute's records. A backup that lives on the machine it is backing up is not
+# a backup; it is a second copy of the same risk.
+#
+# Runs nightly and can be started by hand before anything risky.
+
+on:
+  schedule:
+    # 02:30 IST — after the day's work and before the follow-up pass at 06:00.
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this one was taken (shows in the run list)
+        default: manual
+        required: false
+
+concurrency:
+  # Two dumps writing the same file would produce one corrupt one.
+  group: devansh-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up the deploy key and pin the host
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" \
+            | tr -d '\r' \
+            | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+            | grep -v '^$' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          HOST_IN_KEY=$(awk '{print $1}' ~/.ssh/known_hosts | head -1)
+          if [ "$HOST_IN_KEY" != "${{ secrets.VPS_HOST }}" ]; then
+            KEY_PART=$(cut -d' ' -f2- ~/.ssh/known_hosts | head -1)
+            echo "${{ secrets.VPS_HOST }} $KEY_PART" >> ~/.ssh/known_hosts
+          fi
+
+      - name: Dump the database on the server
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=30 "root@$HOST" '
+            set -e
+            cd /srv/devanshedutech
+            mkdir -p backups
+            STAMP=$(date +%Y%m%d-%H%M%S)
+
+            # -Fc is the custom format: compressed, and restorable table by table, which matters
+            # when the thing you need back is one table somebody emptied rather than the lot.
+            docker compose exec -T dvt-db pg_dump -U devanshedutech -Fc devanshedutech \
+              > "backups/devansh-$STAMP.dump"
+
+            SIZE=$(stat -c%s "backups/devansh-$STAMP.dump")
+            echo "  wrote devansh-$STAMP.dump ($SIZE bytes)"
+
+            # A dump that is a few hundred bytes is an error message, not a database. Failing here
+            # is the whole point: a backup job that reports success on an empty file is worse than
+            # no backup job, because it stops anybody looking.
+            if [ "$SIZE" -lt 20000 ]; then
+              echo "::error::The dump is only $SIZE bytes. That is not a database."
+              rm -f "backups/devansh-$STAMP.dump"
+              exit 1
+            fi
+
+            # Seven on the server for a quick rollback; the off-server copy is the real one.
+            ls -1t backups/devansh-*.dump | tail -n +8 | xargs -r rm --
+            echo "  kept on server: $(ls -1 backups/devansh-*.dump | wc -l)"
+          '
+
+      - name: Bring it off the server
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          LATEST=$(ssh -i ~/.ssh/deploy -o BatchMode=yes "root@$HOST" \
+            'ls -1t /srv/devanshedutech/backups/devansh-*.dump | head -1')
+          echo "  fetching $(basename "$LATEST")"
+          scp -i ~/.ssh/deploy "root@$HOST:$LATEST" ./backup.dump
+          ls -lh backup.dump | awk '{print "  local copy:", $5}'
+
+      - name: Encrypt it
+        env:
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          # This file is every student's name and phone number. An artifact is readable by
+          # anyone with access to the repository, which is a wider group than the people who can
+          # already reach the database — so it does not leave here in the clear.
+          if [ -z "$PASSPHRASE" ]; then
+            echo "::error::BACKUP_PASSPHRASE is not set, so this dump cannot be stored off the server."
+            echo "::error::It holds every student's name and phone number and will not be uploaded unencrypted."
+            echo "::error::Add the secret under Settings → Secrets and variables → Actions, then re-run."
+            echo "::error::Keep the passphrase somewhere outside GitHub — without it the backup cannot be restored."
+            exit 1
+          fi
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in backup.dump -out backup.dump.enc -pass env:PASSPHRASE
+          rm -f backup.dump
+          ls -lh backup.dump.enc | awk '{print "  encrypted:", $5}'
+
+      - name: Keep it
+        uses: actions/upload-artifact@v4
+        with:
+          name: devansh-db-${{ github.run_number }}
+          path: backup.dump.enc
+          # Long enough that a problem noticed in January can be traced to December.
+          retention-days: 90
+          if-no-files-found: error

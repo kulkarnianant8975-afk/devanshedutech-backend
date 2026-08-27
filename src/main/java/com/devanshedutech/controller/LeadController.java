@@ -622,13 +622,48 @@ public class LeadController {
      * Hard delete. Held by admins only and discouraged: the SOP is explicit that a lead who
      * goes nowhere is marked lost and kept, because they may return for a later intake.
      */
+    /**
+     * Moves a lead to the recycle bin.
+     *
+     * <p>The row stays. Removing it took a student's name, their number and every note anybody
+     * had written about them, with no undo — on records that exist precisely because they are
+     * expensive to acquire. It disappears from every screen either way; the difference is
+     * whether it can come back.</p>
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('PERM_LEAD_DELETE')")
-    public ResponseEntity<Void> deleteLead(@PathVariable String id) {
-        if (!leadRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
+    @Transactional
+    public ResponseEntity<Void> deleteLead(@PathVariable String id, Authentication auth) {
+        // readable(), so a counsellor cannot delete a lead they are not allowed to open. The
+        // previous version checked only the permission, never the ownership.
+        Lead lead = readable(id, auth);
+        User actor = access.requireUser(auth);
+
+        lead.setDeletedAt(LocalDateTime.now());
+        lead.setDeletedById(actor.getId());
+        leadRepository.save(lead);
+
+        log.info("Lead {} moved to the recycle bin by {}", id, actor.displayNameOrEmail());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** What is in the bin. Only somebody who could have deleted it may look. */
+    @GetMapping("/deleted")
+    @PreAuthorize("hasAuthority('PERM_LEAD_DELETE')")
+    public ResponseEntity<List<LeadResponse>> deleted() {
+        return ResponseEntity.ok(map(leadRepository.findDeleted(), mapper.ownerNames()));
+    }
+
+    /** Puts one back, exactly as it was. */
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('PERM_LEAD_DELETE')")
+    @Transactional
+    public ResponseEntity<Void> restoreLead(@PathVariable String id, Authentication auth) {
+        if (leadRepository.restore(id) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "That lead is not in the recycle bin.");
         }
-        leadRepository.deleteById(id);
+        log.info("Lead {} restored by {}", id, access.requireUser(auth).displayNameOrEmail());
         return ResponseEntity.noContent().build();
     }
 

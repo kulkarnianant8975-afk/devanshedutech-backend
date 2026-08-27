@@ -3,6 +3,7 @@ package com.devanshedutech.repository;
 import com.devanshedutech.model.Lead;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -24,6 +25,23 @@ public interface LeadRepository extends JpaRepository<Lead, String>, JpaSpecific
 
     /** Dedupe hint: the same student enquiring a second time. */
     List<Lead> findByPhoneNormalized(String phoneNormalized);
+
+    /**
+     * The recycle bin.
+     *
+     * <p>Native, because the entity carries an SQLRestriction that hides deleted rows from every
+     * ordinary query — which is the point of it. Reading them back has to step around that
+     * deliberately rather than by accident.</p>
+     */
+    @Query(value = "SELECT * FROM leads WHERE deleted_at IS NOT NULL "
+                 + "ORDER BY deleted_at DESC LIMIT 200", nativeQuery = true)
+    List<Lead> findDeleted();
+
+    /** Puts one back. Returns the number of rows changed, so a bad id is distinguishable. */
+    @Modifying
+    @Query(value = "UPDATE leads SET deleted_at = NULL, deleted_by_id = NULL "
+                 + "WHERE id = :id AND deleted_at IS NOT NULL", nativeQuery = true)
+    int restore(@Param("id") String id);
 
     /**
      * Only the two timestamps the first-response metric needs, rather than whole entities.
