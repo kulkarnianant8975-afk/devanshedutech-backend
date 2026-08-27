@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.List;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
  * queries are narrowed to their own leads in the database, and single-lead operations
  * re-check ownership rather than trusting that the client only asked for permitted ids.</p>
  */
+@lombok.extern.slf4j.Slf4j
 @RestController
 @RequestMapping("/api/leads")
 public class LeadController {
