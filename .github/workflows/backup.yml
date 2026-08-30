@@ -49,7 +49,15 @@ jobs:
         env:
           HOST: ${{ secrets.VPS_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=30 "root@$HOST" '
+          # Three attempts, spaced. A single refused connection is usually the network rather
+          # than the database, and a backup that gives up on the first one leaves a gap in the
+          # record that nobody notices until they need that night.
+          #
+          # Spaced by a minute rather than retried immediately: hammering a host that just
+          # refused a connection is what gets an address blocked in the first place.
+          attempt() { ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=30 "root@$HOST" "$1"; }
+          for TRY in 1 2 3; do
+            if attempt '
             set -e
             cd /srv/devanshedutech
             mkdir -p backups
@@ -75,7 +83,15 @@ jobs:
             # Seven on the server for a quick rollback; the off-server copy is the real one.
             ls -1t backups/devansh-*.dump | tail -n +8 | xargs -r rm --
             echo "  kept on server: $(ls -1 backups/devansh-*.dump | wc -l)"
-          '
+          '; then
+              exit 0
+            fi
+            echo "  attempt $TRY did not get through"
+            [ "$TRY" -lt 3 ] && sleep 60
+          done
+          echo "::error::Could not reach the server on three attempts a minute apart."
+          echo "::error::If the site itself is up, this is the host blocking these runners rather than an outage."
+          exit 1
 
       - name: Bring it off the server
         env:
